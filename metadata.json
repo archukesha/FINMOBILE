@@ -1,0 +1,5 @@
+{
+  "name": "FinBot Mobile",
+  "description": "A comprehensive personal finance tracker designed for Telegram Mini Apps. Features income/expense tracking, savings goals, analytical charts, and financial advice.",
+  "requestFramePermissions": []
+}
