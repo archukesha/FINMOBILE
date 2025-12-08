@@ -23,9 +23,7 @@
     "typescript": "^5.0.0"
   },
   "overrides": {
-    "lucide-react": {
-      "react": "$react",
-      "react-dom": "$react-dom"
-    }
+    "react": "$react",
+    "react-dom": "$react-dom"
   }
 }
