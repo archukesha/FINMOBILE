@@ -1,8 +1,9 @@
+
 import React, { useState } from 'react';
-import { GoogleGenAI } from "@google/genai";
 import PremiumBlock from './PremiumBlock';
 import { getTransactionsByMonth, getCategories } from '../services/storage';
 import { TransactionType } from '../types';
+import { api } from '../services/api';
 
 interface AdviceProps {
   subscriptionLevel: 'FREE' | 'PRO' | 'PREMIUM';
@@ -24,7 +25,7 @@ const Advice: React.FC<AdviceProps> = ({ subscriptionLevel, onGoToSettings }) =>
     setAdvice(null);
     
     try {
-      // 1. Prepare Context Data
+      // 1. Prepare Context Data locally
       const currentDate = new Date();
       const txs = getTransactionsByMonth(currentDate);
       const categories = getCategories();
@@ -40,37 +41,20 @@ const Advice: React.FC<AdviceProps> = ({ subscriptionLevel, onGoToSettings }) =>
       });
       const topExpenseId = Object.keys(expenseMap).sort((a, b) => expenseMap[b] - expenseMap[a])[0];
       const topExpenseName = topExpenseId ? (categories.find(c => c.id === topExpenseId)?.name || 'Неизвестно') : 'Нет трат';
-      const topExpenseAmount = topExpenseId ? expenseMap[topExpenseId] : 0;
 
-      const contextPrompt = `
-        Контекст пользователя за текущий месяц:
-        - Доходы: ${income} RUB
-        - Расходы: ${expense} RUB
-        - Баланс: ${balance} RUB
-        - Топ категория трат: ${topExpenseName} (${topExpenseAmount} RUB)
-      `;
-
-      // 2. Call AI
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: `
-          Ты персональный финансовый советник для жителя России (Москва). 
-          ${contextPrompt}
-          
-          Дай ОДИН короткий, конкретный и полезный совет, основываясь на этих цифрах.
-          Если расходы превышают доходы, дай совет как сократить.
-          Если денег много, посоветуй куда вложить (вклады, акции РФ).
-          Если трат нет, просто дай мудрый совет про накопления.
-          
-          Ответ должен быть на русском языке, не длиннее 3 предложений. Без воды.
-        `,
+      // 2. Call Backend API
+      // The backend will secure the OpenAI API Key and construct the prompt
+      const result = await api.ai.getAdvice({
+          income,
+          expense,
+          balance,
+          topCategory: topExpenseName
       });
 
-      setAdvice(response.text);
+      setAdvice(result);
     } catch (err) {
       console.error(err);
-      setError("Не удалось связаться с финансовым оракулом. Попробуйте позже.");
+      setError("Сервер AI временно недоступен. Попробуйте позже.");
     } finally {
       setLoading(false);
     }
@@ -89,13 +73,13 @@ const Advice: React.FC<AdviceProps> = ({ subscriptionLevel, onGoToSettings }) =>
               🤖
             </div>
             <div>
-              <h2 className="font-bold text-lg leading-tight">AI Советник</h2>
-              <p className="text-xs text-indigo-200">Анализ ваших данных</p>
+              <h2 className="font-bold text-lg leading-tight">ChatGPT Ассистент</h2>
+              <p className="text-xs text-indigo-200">Powered by OpenAI & Backend</p>
             </div>
           </div>
 
           <p className="text-sm text-indigo-100 mb-6 leading-relaxed">
-            Нажмите кнопку ниже, чтобы получить совет, основанный на ваших реальных доходах и расходах за этот месяц.
+            Я проанализирую ваши транзакции через защищенный сервер и дам совет по оптимизации бюджета.
           </p>
 
           {!advice && !loading && (
@@ -103,7 +87,7 @@ const Advice: React.FC<AdviceProps> = ({ subscriptionLevel, onGoToSettings }) =>
               onClick={getAiAdvice}
               className="w-full py-3 bg-white text-indigo-700 font-bold rounded-xl shadow-lg hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2 active:scale-95 duration-200"
             >
-              <span>Анализировать и дать совет</span>
+              <span>Получить совет</span>
               <span className="text-lg">✨</span>
             </button>
           )}
@@ -111,7 +95,7 @@ const Advice: React.FC<AdviceProps> = ({ subscriptionLevel, onGoToSettings }) =>
           {loading && (
              <div className="flex flex-col items-center justify-center py-4 space-y-3">
                <div className="w-8 h-8 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
-               <span className="text-xs font-medium text-indigo-200 animate-pulse">Изучаю ваши финансы...</span>
+               <span className="text-xs font-medium text-indigo-200 animate-pulse">Генерация ответа (API)...</span>
              </div>
           )}
         </div>
@@ -123,7 +107,7 @@ const Advice: React.FC<AdviceProps> = ({ subscriptionLevel, onGoToSettings }) =>
            <div className="flex gap-4">
              <div className="text-3xl">💡</div>
              <div>
-               <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Совет дня</h3>
+               <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Совет от AI</h3>
                <p className="text-slate-800 font-medium leading-relaxed text-lg">
                  {advice}
                </p>
@@ -133,7 +117,7 @@ const Advice: React.FC<AdviceProps> = ({ subscriptionLevel, onGoToSettings }) =>
              onClick={getAiAdvice}
              className="w-full mt-6 py-2 text-sm font-bold text-slate-400 hover:text-indigo-600 transition-colors border-t border-slate-50 pt-4"
            >
-             Обновить совет ↻
+             Обновить
            </button>
         </div>
       )}
@@ -145,7 +129,7 @@ const Advice: React.FC<AdviceProps> = ({ subscriptionLevel, onGoToSettings }) =>
       )}
 
       <div className="text-center text-[10px] text-slate-300 px-4">
-         Советы генерируются AI на основе введенных вами данных. Не является ИИР.
+         Используется API gpt-4o-mini. Не является инвестиционной рекомендацией.
       </div>
     </div>
   );

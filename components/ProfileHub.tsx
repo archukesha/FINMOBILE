@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { ViewState, SubscriptionLevel, Achievement, Theme } from '../types';
+import { ViewState, SubscriptionLevel, Achievement, Theme, TelegramUser } from '../types';
 import { getAchievements, checkAchievements, getTheme, saveTheme } from '../services/storage';
 import Icon from './Icon';
 
@@ -9,9 +9,10 @@ interface ProfileHubProps {
   onNavigate: (view: ViewState) => void;
   onReset: () => void;
   onOpenAdvice?: () => void;
+  telegramUser?: TelegramUser | null;
 }
 
-const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, onReset, onOpenAdvice }) => {
+const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, onReset, onOpenAdvice, telegramUser }) => {
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [showAchievements, setShowAchievements] = useState(false);
   const [theme, setTheme] = useState<Theme>('LIGHT');
@@ -101,13 +102,24 @@ const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, 
       {/* Profile Header */}
       <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 p-0.5 shadow-lg shadow-blue-200 dark:shadow-blue-900/50">
-            <div className="w-full h-full bg-white dark:bg-slate-800 rounded-full border-4 border-transparent overflow-hidden flex items-center justify-center text-slate-200 dark:text-slate-600">
-                <Icon name="user" size={40} />
-            </div>
+            <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 p-0.5 shadow-lg shadow-blue-200 dark:shadow-blue-900/50 relative">
+                 <div className="w-full h-full bg-white dark:bg-slate-800 rounded-full border-4 border-transparent overflow-hidden flex items-center justify-center text-slate-200 dark:text-slate-600">
+                    {telegramUser?.photo_url ? (
+                        <img src={telegramUser.photo_url} alt="User" className="w-full h-full object-cover" />
+                    ) : (
+                        <Icon name="user" size={40} />
+                    )}
+                 </div>
+                 {telegramUser && (
+                     <div className="absolute bottom-0 right-0 w-6 h-6 bg-blue-500 border-2 border-white dark:border-slate-800 rounded-full flex items-center justify-center text-white" title="Telegram User">
+                        <Icon name="check" size={12} />
+                     </div>
+                 )}
             </div>
             <div>
-            <h2 className="text-2xl font-black text-slate-800 dark:text-white">Мой профиль</h2>
+            <h2 className="text-2xl font-black text-slate-800 dark:text-white">
+                {telegramUser ? telegramUser.first_name : 'Мой профиль'}
+            </h2>
             <div className="flex items-center gap-2 mt-1">
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide border ${
                 subscriptionLevel === 'PREMIUM' ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800' : 
@@ -116,7 +128,7 @@ const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, 
                 {subscriptionLevel}
                 </span>
                 {subscriptionLevel === 'FREE' && (
-                <button onClick={() => onNavigate('SETTINGS')} className="text-blue-600 dark:text-blue-400 text-xs font-bold hover:underline">Улучшить</button>
+                <button onClick={() => onNavigate('SUBSCRIPTIONS')} className="text-blue-600 dark:text-blue-400 text-xs font-bold hover:underline">Улучшить</button>
                 )}
             </div>
             </div>
@@ -147,18 +159,10 @@ const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, 
                <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">Долги</span>
             </button>
 
-            {/* 3. Achievements (Moved to button) */}
-            <button 
-                onClick={() => setShowAchievements(true)} 
-                className="bg-white dark:bg-slate-800 p-4 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors active:scale-95 group relative overflow-hidden"
-            >
-                <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-900/20 text-amber-500 flex items-center justify-center group-hover:scale-110 transition-transform relative z-10">
-                    <Icon name="trophy" size={24} />
-                </div>
-                <span className="font-bold text-slate-700 dark:text-slate-200 text-sm relative z-10">Достижения</span>
-                <span className="absolute top-3 right-3 text-[10px] font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded-md">
-                    {unlockedCount}
-                </span>
+            {/* 3. Reminders (New) */}
+            <button onClick={() => onNavigate('REMINDERS')} className="bg-white dark:bg-slate-800 p-4 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors active:scale-95 group">
+               <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform"><Icon name="bell" size={24} /></div>
+               <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">Напоминания</span>
             </button>
 
             {/* 4. AI Advisor */}
@@ -170,7 +174,23 @@ const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, 
                <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">AI Советник</span>
             </button>
 
-            {/* 5. Education (Full Width) */}
+             {/* 5. Achievements (Wide) */}
+            <button 
+                onClick={() => setShowAchievements(true)} 
+                className="col-span-2 bg-white dark:bg-slate-800 p-4 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors active:scale-95 group relative overflow-hidden"
+            >
+                <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-900/20 text-amber-500 flex items-center justify-center group-hover:scale-110 transition-transform relative z-10">
+                        <Icon name="trophy" size={24} />
+                    </div>
+                    <span className="font-bold text-slate-700 dark:text-slate-200 text-sm relative z-10">Достижения</span>
+                </div>
+                <span className="text-xs font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-2 py-1 rounded-md">
+                    {unlockedCount} / {achievements.length}
+                </span>
+            </button>
+
+            {/* 6. Education (Full Width) */}
             <button onClick={() => onNavigate('EDUCATION')} className="col-span-2 bg-gradient-to-r from-blue-600 to-indigo-600 p-5 rounded-3xl shadow-lg shadow-blue-200 dark:shadow-blue-900/30 flex items-center justify-between text-white group relative overflow-hidden active:scale-[0.99] transition-transform">
                <div className="absolute right-0 top-0 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl transform translate-x-10 -translate-y-10"></div>
                <div className="flex items-center gap-4 relative z-10">
@@ -204,7 +224,7 @@ const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, 
       </div>
 
       <div className="text-center text-[10px] text-slate-300 dark:text-slate-600 pb-24">
-         ID: {subscriptionLevel === 'PREMIUM' ? 'USER-8821-GOLD' : 'USER-GUEST'} • v2.5.0
+         ID: {telegramUser ? `TG-${telegramUser.id}` : (subscriptionLevel === 'PREMIUM' ? 'USER-8821-GOLD' : 'USER-GUEST')} • v2.6.0
       </div>
     </div>
   );
