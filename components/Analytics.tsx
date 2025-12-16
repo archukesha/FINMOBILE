@@ -118,24 +118,29 @@ const Analytics: React.FC<AnalyticsProps> = ({ categories, subscriptionLevel, on
       {/* Header & Date Picker */}
       <div className="flex flex-col gap-4">
          <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-black text-slate-800 dark:text-white">Отчеты</h2>
+            <div className="flex items-center gap-3">
+                <button onClick={onBack} className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 shadow-sm border border-slate-100 dark:border-slate-700 active:scale-95 transition-all">
+                    <Icon name="arrow-left" />
+                </button>
+                <h2 className="text-2xl font-black text-slate-800 dark:text-white">Отчеты</h2>
+            </div>
             <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
-                <button onClick={() => setAnalysisType('EXPENSE')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${analysisType === 'EXPENSE' ? 'bg-white dark:bg-slate-700 shadow text-rose-500' : 'text-slate-400'}`}>Расходы</button>
-                <button onClick={() => setAnalysisType('INCOME')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${analysisType === 'INCOME' ? 'bg-white dark:bg-slate-700 shadow text-emerald-500' : 'text-slate-400'}`}>Доходы</button>
+                <button onClick={() => setAnalysisType('EXPENSE')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${analysisType === 'EXPENSE' ? 'bg-white dark:bg-slate-700 shadow text-rose-500' : 'text-slate-400'}`}>Расходы</button>
+                <button onClick={() => setAnalysisType('INCOME')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${analysisType === 'INCOME' ? 'bg-white dark:bg-slate-700 shadow text-emerald-500' : 'text-slate-400'}`}>Доходы</button>
             </div>
          </div>
          
          <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-3 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-             <button onClick={() => changeMonth(-1)} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg"><Icon name="chevron-left" /></button>
-             <span className="font-bold text-slate-700 dark:text-white capitalize">{monthName}</span>
-             <button onClick={() => changeMonth(1)} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg"><Icon name="chevron-right" /></button>
+             <button onClick={() => changeMonth(-1)} className="w-12 h-12 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg active:scale-95"><Icon name="chevron-left" /></button>
+             <span className="font-bold text-slate-700 dark:text-white capitalize text-lg">{monthName}</span>
+             <button onClick={() => changeMonth(1)} className="w-12 h-12 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg active:scale-95"><Icon name="chevron-right" /></button>
          </div>
 
          {/* Chart Mode Switcher */}
-         <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-             <button onClick={() => { setChartMode('CATEGORY'); setSelectedCategoryId(null); }} className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${chartMode === 'CATEGORY' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-white' : 'text-slate-400'}`}>Категории</button>
-             <button onClick={() => setChartMode('TREND')} className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${chartMode === 'TREND' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-white' : 'text-slate-400'}`}>Динамика</button>
-             <button onClick={() => setChartMode('WEEKDAY')} className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${chartMode === 'WEEKDAY' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-white' : 'text-slate-400'}`}>Дни недели</button>
+         <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl gap-1">
+             <button onClick={() => { setChartMode('CATEGORY'); setSelectedCategoryId(null); }} className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase transition-all ${chartMode === 'CATEGORY' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-white' : 'text-slate-400'}`}>Категории</button>
+             <button onClick={() => setChartMode('TREND')} className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase transition-all ${chartMode === 'TREND' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-white' : 'text-slate-400'}`}>Динамика</button>
+             <button onClick={() => setChartMode('WEEKDAY')} className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase transition-all ${chartMode === 'WEEKDAY' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-white' : 'text-slate-400'}`}>Дни недели</button>
          </div>
       </div>
 
@@ -263,9 +268,9 @@ const Analytics: React.FC<AnalyticsProps> = ({ categories, subscriptionLevel, on
       {chartMode === 'CATEGORY' && (
           selectedCategoryId ? (
             <div className="animate-in slide-in-from-bottom-5">
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex justify-between items-center mb-4 bg-blue-50 dark:bg-blue-900/10 p-3 rounded-2xl">
                     <h3 className="font-bold text-slate-800 dark:text-white">Операции: {categoryData.find(d => d.id === selectedCategoryId)?.name}</h3>
-                    <button onClick={() => setSelectedCategoryId(null)} className="px-4 py-2 bg-blue-100 text-blue-600 rounded-xl text-sm font-bold active:scale-95 transition-transform">Назад ко всем</button>
+                    <button onClick={() => setSelectedCategoryId(null)} className="px-6 py-3 bg-blue-100 dark:bg-blue-800 text-blue-600 dark:text-white rounded-xl text-sm font-bold active:scale-95 transition-transform shadow-sm">Назад ко всем</button>
                 </div>
                 <div className="space-y-3">
                     {filteredTransactions.map(tx => (

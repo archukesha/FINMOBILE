@@ -14,6 +14,17 @@ interface SubscriptionsProps {
   onGoToSettings: () => void;
 }
 
+// Helper for date display
+const formatDateDisplay = (dateStr: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+        const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        return date.toLocaleDateString(undefined, {month:'short', day:'numeric'});
+    }
+    return new Date(dateStr).toLocaleDateString(undefined, {month:'short', day:'numeric'});
+};
+
 const Subscriptions: React.FC<SubscriptionsProps> = ({ onBack, onUpdate, subscriptionLevel, onGoToSettings }) => {
   const [externalSubs, setExternalSubs] = useState<Subscription[]>([]);
   const [loadingSubs, setLoadingSubs] = useState(true);
@@ -152,7 +163,7 @@ const Subscriptions: React.FC<SubscriptionsProps> = ({ onBack, onUpdate, subscri
                                 <div className={`text-[10px] font-bold px-2.5 py-1.5 rounded-lg uppercase tracking-wide ${
                                     new Date(sub.nextPaymentDate) < new Date() ? 'bg-red-50 text-red-500' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
                                 }`}>
-                                    {new Date(sub.nextPaymentDate).toLocaleDateString(undefined, {month:'short', day:'numeric'})}
+                                    {formatDateDisplay(sub.nextPaymentDate)}
                                 </div>
                             </div>
                         </div>

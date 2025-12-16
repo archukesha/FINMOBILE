@@ -13,6 +13,17 @@ interface DebtsProps {
   onGoToSettings: () => void;
 }
 
+// Helper to display date string correctly without timezone shift
+const formatDateDisplay = (dateStr: string | undefined) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+        const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        return date.toLocaleDateString('ru-RU');
+    }
+    return new Date(dateStr).toLocaleDateString('ru-RU');
+};
+
 const Debts: React.FC<DebtsProps> = ({ onBack, initialTab, subscriptionLevel, onGoToSettings }) => {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [activeTab, setActiveTab] = useState<'BANK_LOAN' | 'I_OWE' | 'OWE_ME'>('BANK_LOAN');
@@ -163,7 +174,7 @@ const Debts: React.FC<DebtsProps> = ({ onBack, initialTab, subscriptionLevel, on
                         {item.nextPaymentDate && (
                             <div className="text-xs font-bold text-red-500 mb-3 flex items-center gap-1">
                                 <Icon name="calendar" size={12} />
-                                Срок: {new Date(item.nextPaymentDate).toLocaleDateString()}
+                                Срок: {formatDateDisplay(item.nextPaymentDate)}
                             </div>
                         )}
 
