@@ -1,9 +1,11 @@
 
 import React, { useState } from 'react';
 import { Goal, SubscriptionLevel } from '../types';
-import { getGoals, saveGoal, deleteGoal, updateGoalProgress } from '../services/storage';
+import { getGoals, saveGoal, deleteGoal, updateGoalProgress, getTransactions } from '../services/storage';
+import { api } from '../services/api';
 import PremiumBlock from './PremiumBlock';
 import Icon from './Icon';
+import SwipeableRow from './SwipeableRow';
 
 interface GoalsProps {
   refreshTrigger: number;
@@ -15,6 +17,8 @@ const Goals: React.FC<GoalsProps> = ({ refreshTrigger, subscriptionLevel, onGoTo
   const [goals, setGoals] = useState<Goal[]>(getGoals());
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: '', target: '', icon: 'target' });
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   React.useEffect(() => { setGoals(getGoals()); }, [refreshTrigger]);
 
@@ -47,16 +51,50 @@ const Goals: React.FC<GoalsProps> = ({ refreshTrigger, subscriptionLevel, onGoTo
           }
           updateGoalProgress(id, val);
           setGoals(getGoals());
+          // Trigger confetti
+          setShowConfetti(true);
+          setTimeout(() => setShowConfetti(false), 3000);
       }
   }
 
+  const handleAiGenerate = async () => {
+      setIsAiLoading(true);
+      try {
+          const suggestion = await api.ai.suggestGoal(getTransactions());
+          setForm({ name: suggestion.title, target: suggestion.amount.toString(), icon: 'rocket' });
+          setShowAdd(true);
+      } catch(e) {
+          alert('AI не смог придумать цель');
+      } finally {
+          setIsAiLoading(false);
+      }
+  };
+
   return (
-    <div className="p-5 space-y-6 pb-32">
+    <div className="p-5 space-y-6 pb-32 relative overflow-hidden">
+       {/* Confetti CSS Mock */}
+       {showConfetti && (
+           <div className="fixed inset-0 pointer-events-none z-50 flex justify-center overflow-hidden">
+               {[...Array(20)].map((_,i) => (
+                   <div key={i} className="absolute top-0 text-2xl animate-float" style={{
+                       left: `${Math.random()*100}%`,
+                       animationDuration: `${2+Math.random()*3}s`,
+                       animationDelay: `${Math.random()}s`
+                   }}>🎉</div>
+               ))}
+           </div>
+       )}
+
        <div className="flex justify-between items-center">
         <h2 className="text-2xl font-black text-slate-800 dark:text-white">Мои Цели</h2>
-        <button onClick={() => setShowAdd(!showAdd)} className="w-10 h-10 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform">
-            <Icon name={showAdd ? "x" : "plus"} />
-        </button>
+        <div className="flex gap-2">
+            <button onClick={handleAiGenerate} disabled={isAiLoading} className="w-10 h-10 bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform disabled:opacity-50">
+                <Icon name={isAiLoading ? "loader" : "sparkles"} className={isAiLoading ? "animate-spin" : ""} />
+            </button>
+            <button onClick={() => setShowAdd(!showAdd)} className="w-10 h-10 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform">
+                <Icon name={showAdd ? "x" : "plus"} />
+            </button>
+        </div>
        </div>
 
        {showAdd && (
@@ -72,34 +110,35 @@ const Goals: React.FC<GoalsProps> = ({ refreshTrigger, subscriptionLevel, onGoTo
            {goals.map(g => {
                const percent = Math.min(100, Math.round((g.currentAmount / g.targetAmount) * 100));
                return (
-                   <div key={g.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden group">
-                       <div className="absolute top-0 right-0 p-4 opacity-10 text-[100px] leading-none -mr-4 -mt-4 transition-transform group-hover:rotate-12">
-                           <Icon name={g.icon || 'target'} size={100} />
-                       </div>
-                       
-                       <div className="relative z-10">
-                           <div className="flex justify-between items-start mb-4">
-                               <div>
-                                   <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Цель</div>
-                                   <h3 className="text-2xl font-black text-slate-900 dark:text-white">{g.name}</h3>
+                   <SwipeableRow key={g.id} onSwipeLeft={() => deleteGoal(g.id)}>
+                       <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 p-4 opacity-10 text-[100px] leading-none -mr-4 -mt-4 transition-transform group-hover:rotate-12">
+                               <Icon name={g.icon || 'target'} size={100} />
+                           </div>
+                           
+                           <div className="relative z-10">
+                               <div className="flex justify-between items-start mb-4">
+                                   <div>
+                                       <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Цель</div>
+                                       <h3 className="text-2xl font-black text-slate-900 dark:text-white">{g.name}</h3>
+                                   </div>
                                </div>
-                               <button onClick={() => deleteGoal(g.id)} className="text-slate-300 hover:text-red-500"><Icon name="trash-2" size={18} /></button>
-                           </div>
 
-                           <div className="flex items-end gap-2 mb-2">
-                               <span className="text-3xl font-black text-indigo-600 dark:text-indigo-400">{g.currentAmount.toLocaleString()}</span>
-                               <span className="text-sm font-bold text-slate-400 mb-1">/ {g.targetAmount.toLocaleString()}</span>
-                           </div>
+                               <div className="flex items-end gap-2 mb-2">
+                                   <span className="text-3xl font-black text-indigo-600 dark:text-indigo-400">{g.currentAmount.toLocaleString()}</span>
+                                   <span className="text-sm font-bold text-slate-400 mb-1">/ {g.targetAmount.toLocaleString()}</span>
+                               </div>
 
-                           <div className="w-full h-4 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden mb-4">
-                               <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-1000 ease-out" style={{width: `${percent}%`}}></div>
-                           </div>
+                               <div className="w-full h-4 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden mb-4">
+                                   <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-1000 ease-out" style={{width: `${percent}%`}}></div>
+                               </div>
 
-                           <button onClick={() => quickAdd(g.id)} className="w-full py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-transform flex justify-center items-center gap-2">
-                               <Icon name="plus" size={16} /> Пополнить
-                           </button>
+                               <button onClick={() => quickAdd(g.id)} className="w-full py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-transform flex justify-center items-center gap-2">
+                                   <Icon name="plus" size={16} /> Пополнить
+                               </button>
+                           </div>
                        </div>
-                   </div>
+                   </SwipeableRow>
                )
            })}
        </div>

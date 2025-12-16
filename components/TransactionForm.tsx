@@ -1,9 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
-import { TransactionType, Category, SubscriptionLevel, Transaction, Debt } from '../types';
-import { saveTransaction, updateGoalProgress, getGoals, saveCategory, deleteTransaction, updateTransaction, saveDebt } from '../services/storage';
+import React, { useState, useEffect, useRef } from 'react';
+import { TransactionType, Category, SubscriptionLevel, Transaction, Debt, Currency } from '../types';
+import { saveTransaction, updateGoalProgress, getGoals, saveCategory, deleteTransaction, updateTransaction, saveDebt, saveAllCategories, getCurrency } from '../services/storage';
+import { api } from '../services/api';
 import { COLORS, AVAILABLE_ICONS } from '../constants';
 import PremiumBlock from './PremiumBlock';
+import { haptic } from '../services/telegram';
 import Icon from './Icon';
 
 interface TransactionFormProps {
@@ -15,6 +17,20 @@ interface TransactionFormProps {
   initialData?: Transaction | null;
 }
 
+// Exchange Rates Mock
+const RATES: Record<Currency, number> = {
+    RUB: 1,
+    USD: 92.5,
+    EUR: 100.2,
+    KZT: 0.2
+};
+
+const getLocalDateString = () => {
+    const d = new Date();
+    // Use sv-SE locale to get YYYY-MM-DD format regardless of user location, but in local time
+    return d.toLocaleDateString('sv-SE');
+};
+
 const TransactionForm: React.FC<TransactionFormProps> = ({ 
   categories, 
   onComplete, 
@@ -24,11 +40,17 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   initialData 
 }) => {
   const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
-  const [amount, setAmount] = useState<string>('');
+  const [amountInput, setAmountInput] = useState<string>('');
+  const [currency, setCurrency] = useState<Currency>('RUB');
   const [categoryId, setCategoryId] = useState<string>('');
-  const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState<string>(getLocalDateString());
   const [note, setNote] = useState<string>('');
+  const [isAiProcessing, setIsAiProcessing] = useState(false);
   
+  // Reorder Mode
+  const [isReorderMode, setIsReorderMode] = useState(false);
+  const [localCategories, setLocalCategories] = useState<Category[]>(categories);
+
   // For Income: Split to Savings
   const [splitSavings, setSplitSavings] = useState(false);
   const [savingsPercent, setSavingsPercent] = useState<number>(20);
@@ -49,44 +71,173 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   const [newCatName, setNewCatName] = useState('');
   const [newCatIcon, setNewCatIcon] = useState(AVAILABLE_ICONS[0]);
   const [newCatColor, setNewCatColor] = useState(COLORS[0]);
+  
+  // File Input Ref
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const amountInputRef = useRef<HTMLInputElement>(null);
 
   const isEditMode = !!initialData;
 
   useEffect(() => {
+    setLocalCategories(categories);
+  }, [categories]);
+
+  useEffect(() => {
     if (initialData) {
       setType(initialData.type);
-      setAmount(initialData.amount.toString());
+      setAmountInput(initialData.originalAmount?.toString() || initialData.amount.toString());
+      setCurrency(initialData.currency || 'RUB');
       setCategoryId(initialData.categoryId);
       setDate(initialData.date);
       setNote(initialData.note || '');
       if (initialData.goalId) setGoalId(initialData.goalId);
+    } else {
+        setCurrency(getCurrency());
     }
   }, [initialData]);
 
-  const filteredCategories = categories.filter(c => {
+  const filteredCategories = localCategories.filter(c => {
     if (type === TransactionType.INCOME) return c.type === 'INCOME';
     if (type === TransactionType.EXPENSE) return c.type === 'EXPENSE';
     return true; 
   });
 
+  // Safe Calculator Evaluation
+  const calculateAmount = () => {
+      try {
+          // Allow digits, +, -, *, /, ., ( )
+          if (/^[0-9+\-*/.() ]+$/.test(amountInput)) {
+               // eslint-disable-next-line no-new-func
+               const result = new Function('return ' + amountInput)();
+               if (isFinite(result)) {
+                   setAmountInput(parseFloat(result.toFixed(2)).toString());
+                   return result;
+               }
+          }
+      } catch (e) {
+          // invalid expression
+      }
+      return parseFloat(amountInput);
+  };
+
+  const handleBlurAmount = () => {
+      calculateAmount();
+  };
+
+  // --- AI HANDLERS ---
+
+  const handleVoiceInput = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        alert('Голосовой ввод не поддерживается вашим браузером.');
+        return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'ru-RU';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    setIsAiProcessing(true);
+    haptic.impact('light');
+
+    recognition.start();
+
+    recognition.onresult = async (event: any) => {
+        const text = event.results[0][0].transcript;
+        setNote(text); // Show raw text first
+        
+        try {
+            const parsed = await api.ai.parseVoiceCommand(text, categories);
+            if (parsed.amount) setAmountInput(parsed.amount.toString());
+            if (parsed.categoryId) setCategoryId(parsed.categoryId);
+            if (parsed.note) setNote(parsed.note);
+            haptic.notification('success');
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsAiProcessing(false);
+        }
+    };
+
+    recognition.onerror = () => setIsAiProcessing(false);
+    recognition.onend = () => {
+        if (isAiProcessing) setIsAiProcessing(false); 
+    };
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      // Basic image size validation (optional but recommended)
+      if (file.size > 5 * 1024 * 1024) {
+          alert("Файл слишком большой (макс 5МБ)");
+          return;
+      }
+
+      setIsAiProcessing(true);
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+          const base64 = (reader.result as string).split(',')[1];
+          try {
+              const parsed = await api.ai.parseReceipt(base64);
+              if (parsed.amount) setAmountInput(parsed.amount.toString());
+              if (parsed.date) setDate(parsed.date);
+              if (parsed.note) setNote(parsed.note);
+              if (parsed.categoryId) setCategoryId(parsed.categoryId);
+              haptic.notification('success');
+          } catch (e) {
+              alert('Не удалось распознать чек');
+          } finally {
+              setIsAiProcessing(false);
+          }
+      };
+      reader.readAsDataURL(file);
+  };
+
+  const handleNoteBlur = async () => {
+      if (note && !categoryId && !isEditMode && type === TransactionType.EXPENSE) {
+          try {
+             const suggested = await api.ai.suggestCategory(note, categories);
+             if (suggested) setCategoryId(suggested);
+          } catch {}
+      }
+  };
+
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const val = parseFloat(amount);
-    if (!val || val <= 0) return;
+    const finalVal = calculateAmount();
+    
+    if (!finalVal || finalVal <= 0) return;
+
+    // Convert to Base Currency (RUB) for storage if needed, or store original
+    // For this app, we will store normalized amount (RUB) and original amount
+    const rate = RATES[currency] || 1;
+    const normalizedAmount = finalVal * rate;
+
+    haptic.impact('heavy');
+
+    const txBase = {
+        amount: normalizedAmount,
+        originalAmount: finalVal,
+        currency: currency,
+        categoryId: categoryId || filteredCategories[0]?.id,
+        date,
+        note
+    };
 
     // --- EDIT MODE ---
     if (isEditMode && initialData) {
       updateTransaction({
         ...initialData,
-        amount: val,
+        ...txBase,
         type,
-        categoryId: categoryId || filteredCategories[0]?.id,
-        date,
-        note,
         goalId: type === TransactionType.SAVING_DEPOSIT ? goalId : undefined
       });
       if (type === TransactionType.SAVING_DEPOSIT && goalId) {
-           updateGoalProgress(goalId, val - initialData.amount);
+           updateGoalProgress(goalId, normalizedAmount - initialData.amount);
       }
       onComplete();
       return;
@@ -94,22 +245,18 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
     // --- CREATE MODE ---
     if (type === TransactionType.INCOME && isPrepayment) {
-        // 1. Create the partial income transaction
         saveTransaction({
             id: crypto.randomUUID(),
-            amount: val,
             type: TransactionType.INCOME,
-            categoryId: categoryId || filteredCategories[0]?.id,
-            date,
+            ...txBase,
             note: note ? `${note} (Предоплата)` : 'Предоплата по проекту'
         });
 
-        // 2. Calculate remaining amount
+        // Simplified Debt logic (assuming single currency for debts for now)
         const total = parseFloat(totalProjectAmount);
-        const remaining = total - val;
+        const remaining = total - finalVal;
 
         if (remaining > 0 && clientName) {
-            // 3. Create a Debt (OWE_ME)
             const newDebt: Debt = {
                 id: crypto.randomUUID(),
                 type: 'OWE_ME',
@@ -123,23 +270,18 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         }
 
     } else if (type === TransactionType.INCOME && splitSavings) {
-      // Create Income
-      const savingsAmount = val * (savingsPercent / 100);
-      const incomeAmount = val; 
+      const savingsAmount = normalizedAmount * (savingsPercent / 100);
 
       saveTransaction({
         id: crypto.randomUUID(),
-        amount: incomeAmount,
         type: TransactionType.INCOME,
-        categoryId: categoryId || filteredCategories[0]?.id,
-        date,
-        note
+        ...txBase
       });
 
-      // Create Auto-Savings transfer
       saveTransaction({
         id: crypto.randomUUID(),
         amount: savingsAmount,
+        currency: 'RUB', // Internal transfer usually base currency
         type: TransactionType.SAVING_DEPOSIT,
         categoryId: 'sav_transfer',
         date,
@@ -149,23 +291,18 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     } else if (type === TransactionType.SAVING_DEPOSIT) {
       saveTransaction({
         id: crypto.randomUUID(),
-        amount: val,
         type: TransactionType.SAVING_DEPOSIT,
         categoryId: 'sav_transfer',
-        date,
-        note,
+        ...txBase,
         goalId
       });
-      if (goalId) updateGoalProgress(goalId, val);
+      if (goalId) updateGoalProgress(goalId, normalizedAmount);
 
     } else {
       saveTransaction({
         id: crypto.randomUUID(),
-        amount: val,
         type: type,
-        categoryId: categoryId || filteredCategories[0]?.id,
-        date,
-        note
+        ...txBase
       });
     }
 
@@ -173,14 +310,39 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   };
 
   const handleDelete = () => {
+    haptic.impact('medium');
     if (initialData && confirm('Удалить эту операцию?')) {
       deleteTransaction(initialData.id);
       onComplete();
     }
   };
 
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+      e.dataTransfer.setData('text/plain', index.toString());
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault(); 
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+      const dragIndex = parseInt(e.dataTransfer.getData('text/plain'));
+      if (dragIndex === dropIndex) return;
+
+      const newFiltered = [...filteredCategories];
+      const [removed] = newFiltered.splice(dragIndex, 1);
+      newFiltered.splice(dropIndex, 0, removed);
+
+      newFiltered.forEach((cat, idx) => { cat.order = idx; });
+      saveAllCategories(localCategories.map(c => {
+          const updated = newFiltered.find(nf => nf.id === c.id);
+          return updated || c;
+      }));
+      onCategoryUpdate(); 
+      haptic.impact('light');
+  };
+
   const initCreateCategory = () => {
-    // Custom categories are available for PLUS, PRO, and MAX tiers
     if (subscriptionLevel !== 'FREE') {
       setIsCreatingCategory(true);
     } else {
@@ -197,32 +359,30 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       name: newCatName,
       icon: newCatIcon,
       color: newCatColor,
-      type: type === TransactionType.INCOME ? 'INCOME' : 'EXPENSE'
+      type: type === TransactionType.INCOME ? 'INCOME' : 'EXPENSE',
+      order: 9999
     };
 
     saveCategory(newCat);
     onCategoryUpdate();
     setIsCreatingCategory(false);
     setNewCatName('');
-    setCategoryId(newCat.id); // Select the new category
+    setCategoryId(newCat.id);
   };
 
   const setPercentAmount = (percent: number) => {
+      haptic.selection();
       const total = parseFloat(totalProjectAmount);
       if (total > 0) {
-          setAmount(Math.round(total * (percent / 100)).toString());
+          setAmountInput(Math.round(total * (percent / 100)).toString());
       }
   };
 
   const addAmount = (add: number) => {
-      const current = parseFloat(amount) || 0;
-      setAmount((current + add).toString());
+      haptic.selection();
+      const current = parseFloat(amountInput) || 0;
+      setAmountInput((current + add).toString());
   }
-
-  // Helper calculation for display
-  const currentPrepaymentPercent = (amount && totalProjectAmount) 
-    ? Math.round((parseFloat(amount) / parseFloat(totalProjectAmount)) * 100) 
-    : 0;
 
   const getGoalRemaining = (id: string) => {
       const goal = goals.find(g => g.id === id);
@@ -242,7 +402,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   }
 
   if (isCreatingCategory) {
-    return (
+     return (
       <div className="p-4 bg-white dark:bg-slate-900 min-h-full pb-24">
          <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold text-slate-800 dark:text-white">Новая категория</h2>
@@ -257,46 +417,43 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 value={newCatName}
                 onChange={(e) => setNewCatName(e.target.value)}
                 placeholder="Например, Подписки"
-                className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-slate-800 dark:text-white"
+                className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white"
                 autoFocus
                 required
               />
             </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Иконка</label>
-              <div className="grid grid-cols-6 gap-2 h-32 overflow-y-auto p-2 border border-slate-100 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800">
-                 {AVAILABLE_ICONS.map(icon => (
-                   <button
-                     key={icon}
-                     type="button"
-                     onClick={() => setNewCatIcon(icon)}
-                     className={`aspect-square flex items-center justify-center rounded-lg transition-all ${newCatIcon === icon ? 'bg-blue-600 text-white shadow-md scale-110' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
-                   >
-                      <Icon name={icon} size={20} />
-                   </button>
-                 ))}
-              </div>
+             <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Бюджет (Лимит в месяц)</label>
+              <input 
+                type="number" 
+                placeholder="Необязательно"
+                className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary outline-none text-slate-800 dark:text-white"
+              />
             </div>
 
-            <div>
+            <div className="space-y-2">
                <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Цвет</label>
-               <div className="flex flex-wrap gap-3">
-                 {COLORS.map(color => (
-                   <button
-                    key={color}
-                    type="button"
-                    onClick={() => setNewCatColor(color)}
-                    className={`w-10 h-10 rounded-full transition-transform ${newCatColor === color ? 'ring-4 ring-offset-2 ring-blue-100 dark:ring-blue-900 scale-110' : ''}`}
-                    style={{ backgroundColor: color }}
-                   />
-                 ))}
+               <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+                   {COLORS.map(c => (
+                       <button key={c} type="button" onClick={() => setNewCatColor(c)} className={`w-8 h-8 rounded-full flex-shrink-0 ${newCatColor === c ? 'ring-2 ring-offset-2 ring-slate-400' : ''}`} style={{backgroundColor: c}}></button>
+                   ))}
+               </div>
+            </div>
+
+            <div className="space-y-2">
+               <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Иконка</label>
+               <div className="grid grid-cols-6 gap-2 h-40 overflow-y-auto">
+                   {AVAILABLE_ICONS.map(i => (
+                       <button key={i} type="button" onClick={() => setNewCatIcon(i)} className={`w-10 h-10 rounded-xl flex items-center justify-center ${newCatIcon === i ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-50 dark:bg-slate-800 text-slate-400'}`}>
+                           <Icon name={i} size={20} />
+                       </button>
+                   ))}
                </div>
             </div>
 
             <button
               type="submit"
-              className="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-xl shadow-blue-200 dark:shadow-blue-900/50 mt-8"
+              className="w-full py-4 bg-primary text-white font-bold rounded-2xl shadow-xl shadow-primary/40 mt-8"
             >
               Создать категорию
             </button>
@@ -306,27 +463,63 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   }
 
   return (
-    <div className="p-4 bg-white dark:bg-slate-900 min-h-full flex flex-col pb-20">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-4 bg-white dark:bg-slate-900 min-h-full flex flex-col pb-20 relative">
+      {/* AI Processing Overlay */}
+      {isAiProcessing && (
+          <div className="absolute inset-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm flex items-center justify-center flex-col animate-in fade-in">
+              <div className="w-16 h-16 rounded-full bg-indigo-500 animate-pulse flex items-center justify-center text-white shadow-xl shadow-indigo-500/50">
+                  <Icon name="sparkles" size={32} className="animate-spin" />
+              </div>
+              <p className="mt-4 font-bold text-slate-800 dark:text-white">AI анализирует...</p>
+          </div>
+      )}
+
+      <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-slate-800 dark:text-white">
           {isEditMode ? 'Редактировать' : 'Новая операция'}
         </h2>
-        {isEditMode && (
-          <button 
-            type="button"
-            onClick={onComplete}
-            className="text-sm font-medium text-slate-400"
-          >
-            Отмена
-          </button>
+        
+        {!isEditMode && (
+            <div className="flex gap-2">
+                 <button 
+                    onClick={handleVoiceInput}
+                    className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center active:scale-95 transition-transform"
+                >
+                     <Icon name="mic" size={20} />
+                </button>
+                <div className="relative">
+                    <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        ref={fileInputRef}
+                        onChange={handleImageUpload}
+                    />
+                    <button 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center active:scale-95 transition-transform"
+                    >
+                        <Icon name="scan" size={20} />
+                    </button>
+                </div>
+                {isEditMode && (
+                  <button 
+                    type="button"
+                    onClick={onComplete}
+                    className="text-sm font-medium text-slate-400 ml-2"
+                  >
+                    Отмена
+                  </button>
+                )}
+            </div>
         )}
       </div>
       
-      {/* Type Switcher - Visual Cards */}
-      <div className="grid grid-cols-3 gap-3 mb-6 mt-8">
+      {/* Type Switcher */}
+      <div className="grid grid-cols-3 gap-3 mb-6 mt-2">
         <button
           type="button"
-          onClick={() => { setType(TransactionType.EXPENSE); setIsPrepayment(false); }}
+          onClick={() => { haptic.selection(); setType(TransactionType.EXPENSE); setIsPrepayment(false); }}
           className={`flex flex-col items-center justify-center py-3 rounded-2xl transition-all duration-200 border-2 active:scale-95 ${
             type === TransactionType.EXPENSE 
               ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-500 text-rose-600 dark:text-rose-400 shadow-md scale-105' 
@@ -341,7 +534,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
         <button
           type="button"
-          onClick={() => { setType(TransactionType.INCOME); setSplitSavings(false); }}
+          onClick={() => { haptic.selection(); setType(TransactionType.INCOME); setSplitSavings(false); }}
           className={`flex flex-col items-center justify-center py-3 rounded-2xl transition-all duration-200 border-2 active:scale-95 ${
             type === TransactionType.INCOME
               ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500 text-emerald-600 dark:text-emerald-400 shadow-md scale-105' 
@@ -356,7 +549,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
         <button
           type="button"
-          onClick={() => { setType(TransactionType.SAVING_DEPOSIT); setIsPrepayment(false); }}
+          onClick={() => { haptic.selection(); setType(TransactionType.SAVING_DEPOSIT); setIsPrepayment(false); }}
           className={`flex flex-col items-center justify-center py-3 rounded-2xl transition-all duration-200 border-2 active:scale-95 ${
             type === TransactionType.SAVING_DEPOSIT
               ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500 text-blue-600 dark:text-blue-400 shadow-md scale-105' 
@@ -372,45 +565,38 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
       <form onSubmit={handleSubmit} className="space-y-6 flex-1">
         
-        {/* Amount */}
+        {/* Amount with Currency & Calculator */}
         <div className="text-center">
           <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
             {type === TransactionType.INCOME && isPrepayment ? 'Предоплата (сейчас)' : 'Сумма'}
           </label>
-          <div className="relative inline-block w-3/4">
-            <input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full text-center py-2 bg-transparent border-b-2 border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:outline-none text-4xl font-bold text-slate-800 dark:text-white placeholder-slate-200 dark:placeholder-slate-700"
-              placeholder="0"
-              required
-              step="0.01"
-              autoFocus={!isEditMode}
-            />
-            <span className="absolute right-0 bottom-4 text-slate-400 font-medium text-lg">₽</span>
-          </div>
-          
-          {/* Quick Input Chips */}
-          <div className="flex justify-center gap-2 mt-4 flex-wrap">
-             {[100, 500, 1000, 5000].map(val => (
-                 <button
-                    key={val}
-                    type="button"
-                    onClick={() => addAmount(val)}
-                    className="px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-95 transition-transform"
-                 >
-                     +{val}
-                 </button>
-             ))}
-          </div>
-          
-          {/* Percentage Helper for Freelance */}
-          {type === TransactionType.INCOME && isPrepayment && totalProjectAmount && (
-             <div className="mt-2 text-xs font-bold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 inline-block px-2 py-1 rounded-md">
-                 Это {currentPrepaymentPercent}% от заказа
+          <div className="flex items-center justify-center gap-2">
+             <div className="relative inline-block w-3/4">
+                <input
+                ref={amountInputRef}
+                type="text"
+                inputMode="decimal" 
+                value={amountInput}
+                onChange={(e) => setAmountInput(e.target.value)}
+                onBlur={handleBlurAmount}
+                className="w-full text-center py-2 bg-transparent border-b-2 border-slate-200 dark:border-slate-700 focus:border-primary focus:outline-none text-4xl font-bold text-slate-800 dark:text-white placeholder-slate-200 dark:placeholder-slate-700"
+                placeholder="0"
+                required
+                autoFocus={!isEditMode}
+                />
              </div>
-          )}
+             <select 
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value as Currency)}
+                className="bg-slate-100 dark:bg-slate-800 font-bold text-sm rounded-lg px-2 py-1 outline-none text-slate-600 dark:text-slate-300"
+             >
+                 <option value="RUB">RUB</option>
+                 <option value="USD">USD</option>
+                 <option value="EUR">EUR</option>
+                 <option value="KZT">KZT</option>
+             </select>
+          </div>
+          <div className="text-[10px] text-slate-400 mt-1">Можно писать примеры: 150+50</div>
         </div>
 
         {/* Category Grid */}
@@ -418,26 +604,42 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           <div>
             <div className="flex justify-between items-center mb-3">
                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Категория</label>
+               <button 
+                type="button" 
+                onClick={() => setIsReorderMode(!isReorderMode)}
+                className={`text-xs font-bold ${isReorderMode ? 'text-primary' : 'text-slate-400'}`}
+               >
+                 {isReorderMode ? 'Готово' : 'Сортировка'}
+               </button>
             </div>
             
             <div className="grid grid-cols-4 gap-3">
-              {filteredCategories.map(cat => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setCategoryId(cat.id)}
-                  className={`aspect-square rounded-2xl flex flex-col items-center justify-center gap-1 transition-all border ${
-                    categoryId === cat.id 
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 ring-2 ring-blue-100 dark:ring-blue-900' 
-                      : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                  }`}
+              {filteredCategories.map((cat, index) => (
+                <div
+                    key={cat.id}
+                    draggable={isReorderMode}
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, index)}
+                    className={isReorderMode ? 'animate-pulse' : ''}
                 >
-                  <span className="text-2xl"><Icon name={cat.icon} /></span>
-                  <span className="truncate w-full text-center text-[10px] font-medium px-1">{cat.name}</span>
-                </button>
+                    <button
+                    type="button"
+                    onClick={() => { haptic.selection(); setCategoryId(cat.id); }}
+                    disabled={isReorderMode}
+                    className={`w-full aspect-square rounded-2xl flex flex-col items-center justify-center gap-1 transition-all border ${
+                        categoryId === cat.id && !isReorderMode
+                        ? 'border-primary bg-primary/10 text-primary ring-2 ring-primary/20' 
+                        : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                    }`}
+                    >
+                        <span className="text-2xl"><Icon name={cat.icon} /></span>
+                        <span className="truncate w-full text-center text-[10px] font-medium px-1">{cat.name}</span>
+                    </button>
+                </div>
               ))}
               
-              {/* Add Category Button - Only fully active for PREMIUM */}
+              {/* Add Category Button */}
               <button
                 type="button"
                 onClick={initCreateCategory}
@@ -466,7 +668,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
               <select
                 value={goalId}
                 onChange={(e) => setGoalId(e.target.value)}
-                className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none font-medium text-slate-700 dark:text-slate-200"
+                className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary appearance-none font-medium text-slate-700 dark:text-slate-200"
               >
                 <option value="">Общие накопления</option>
                 {goals.map(g => (
@@ -488,7 +690,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     </div>
                     <button
                         type="button"
-                        onClick={() => { setIsPrepayment(!isPrepayment); setSplitSavings(false); }}
+                        onClick={() => { haptic.selection(); setIsPrepayment(!isPrepayment); setSplitSavings(false); }}
                         className={`w-12 h-7 rounded-full transition-colors flex items-center px-1 shadow-inner ${isPrepayment ? 'bg-indigo-500 justify-end' : 'bg-slate-300 dark:bg-slate-600 justify-start'}`}
                     >
                         <div className="w-5 h-5 bg-white rounded-full shadow-md"></div>
@@ -497,6 +699,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
                  {isPrepayment && (
                      <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/30 space-y-3 animate-in fade-in slide-in-from-top-2">
+                        {/* Fields */}
                         <div>
                              <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Имя клиента / Проект</label>
                              <input 
@@ -533,56 +736,10 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                                    ))}
                                 </div>
                              )}
-
-                             {amount && totalProjectAmount && (Number(totalProjectAmount) - Number(amount) > 0) && (
-                                 <div className="mt-2 text-xs text-indigo-600 dark:text-indigo-400 font-bold text-right border-t border-indigo-50 dark:border-indigo-900/30 pt-2">
-                                     Останется получить: {Number(totalProjectAmount) - Number(amount)} ₽
-                                 </div>
-                             )}
-                        </div>
-                        <div>
-                             <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Срок сдачи (Опционально)</label>
-                             <input 
-                                type="date"
-                                className="w-full p-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-sm text-slate-800 dark:text-white"
-                                value={projectDueDate}
-                                onChange={e => setProjectDueDate(e.target.value)}
-                             />
                         </div>
                      </div>
                  )}
              </div>
-        )}
-
-        {/* Income Split Option (Mutually exclusive with Prepayment) */}
-        {!isEditMode && type === TransactionType.INCOME && !isPrepayment && (
-          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30 flex items-center justify-between">
-            <div>
-              <span className="block text-sm font-bold text-blue-900 dark:text-blue-200">Отложить сразу?</span>
-              <span className="text-xs text-blue-600 dark:text-blue-400 opacity-80">Авто-перевод % в копилку</span>
-            </div>
-            <div className="flex items-center gap-3">
-              {splitSavings && (
-                <div className="relative">
-                   <input 
-                    type="number" 
-                    className="w-14 p-1 text-center text-sm font-bold text-blue-800 dark:text-blue-200 bg-white dark:bg-slate-700 border border-blue-200 dark:border-blue-800 rounded-lg focus:outline-none"
-                    value={savingsPercent}
-                    onChange={(e) => setSavingsPercent(Number(e.target.value))}
-                    min="1" max="100"
-                  />
-                  <span className="absolute right-1 top-1 text-xs text-blue-300">%</span>
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => setSplitSavings(!splitSavings)}
-                className={`w-12 h-7 rounded-full transition-colors flex items-center px-1 shadow-inner ${splitSavings ? 'bg-blue-500 justify-end' : 'bg-slate-300 dark:bg-slate-600 justify-start'}`}
-              >
-                <div className="w-5 h-5 bg-white rounded-full shadow-md"></div>
-              </button>
-            </div>
-          </div>
         )}
 
         {/* Date & Note */}
@@ -593,7 +750,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary outline-none"
               required
             />
           </div>
@@ -603,8 +760,9 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
               type="text"
               value={note}
               onChange={(e) => setNote(e.target.value)}
+              onBlur={handleNoteBlur}
               placeholder="Такси, Обед..."
-              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none placeholder-slate-400"
+              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary outline-none placeholder-slate-400"
             />
           </div>
         </div>
@@ -613,7 +771,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         <div className="flex flex-col gap-3 mt-8 pb-4">
           <button
             type="submit"
-            className="w-full py-4 bg-slate-900 dark:bg-blue-600 text-white font-bold rounded-2xl shadow-xl shadow-slate-200 dark:shadow-blue-900/30 hover:bg-slate-800 dark:hover:bg-blue-500 transition-transform active:scale-[0.98] flex justify-center items-center gap-2"
+            className="w-full py-4 bg-primary text-white font-bold rounded-2xl shadow-xl shadow-primary/30 hover:opacity-90 transition-transform active:scale-[0.98] flex justify-center items-center gap-2"
           >
             <span>{isEditMode ? 'Сохранить изменения' : 'Сохранить'}</span>
           </button>

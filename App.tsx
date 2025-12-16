@@ -12,9 +12,12 @@ import Subscriptions from './components/Subscriptions';
 import Debts from './components/Debts';
 import Education from './components/Education';
 import Reminders from './components/Reminders';
+import CalendarView from './components/CalendarView'; // New
+import SplitBill from './components/SplitBill'; // New
+import Onboarding from './components/Onboarding'; // New
 import Icon from './components/Icon';
 import { ViewState, SubscriptionLevel, Transaction, TelegramUser } from './types';
-import { getCategories, getSubscriptionLevel, setSubscriptionLevel, checkAchievements, getTheme, saveTheme } from './services/storage';
+import { getCategories, getSubscriptionLevel, setSubscriptionLevel, checkAchievements, getTheme, saveTheme, hasSeenOnboarding, setSeenOnboarding, setSharedWalletId } from './services/storage';
 import { api } from './services/api';
 
 const App: React.FC = () => {
@@ -38,6 +41,10 @@ const App: React.FC = () => {
   // Telegram User
   const [tgUser, setTgUser] = useState<TelegramUser | null>(null);
 
+  // New Features State
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [isPrivacyMode, setIsPrivacyMode] = useState(false);
+
   // Toast State
   const [toast, setToast] = useState<{msg: string, type: 'success' | 'error' | 'info'} | null>(null);
 
@@ -46,8 +53,13 @@ const App: React.FC = () => {
         // 1. Initialize Storage
         setSubLevel(getSubscriptionLevel());
         checkAchievements();
+
+        // 2. Check Onboarding
+        if (!hasSeenOnboarding()) {
+            setShowOnboarding(true);
+        }
         
-        // 2. Initialize Telegram Web App & Auth
+        // 3. Initialize Telegram Web App & Auth
         if (window.Telegram?.WebApp) {
             const tg = window.Telegram.WebApp;
             tg.ready();
@@ -56,6 +68,18 @@ const App: React.FC = () => {
             // Get User Data
             if (tg.initDataUnsafe?.user) {
                 setTgUser(tg.initDataUnsafe.user);
+            }
+
+            // Handle Start Params (Referrals / Shared Wallet)
+            const startParam = tg.initDataUnsafe?.start_param;
+            if (startParam) {
+                if (startParam.startsWith('join_')) {
+                    const walletId = startParam.replace('join_', '');
+                    setSharedWalletId(walletId);
+                    showToast('Вы присоединились к совместному бюджету!', 'success');
+                } else if (startParam.startsWith('ref_')) {
+                    showToast('Бонус за реферала активирован!', 'info');
+                }
             }
 
             // Sync Theme
@@ -145,6 +169,16 @@ const App: React.FC = () => {
       return billingPeriod === 'MONTHLY' ? `${monthly} ₽` : `${yearly} ₽`;
   };
 
+  const handleOnboardingComplete = () => {
+      setSeenOnboarding();
+      setShowOnboarding(false);
+      refreshData(); // Force refresh to apply currency settings if any
+  };
+
+  if (showOnboarding) {
+      return <Onboarding onComplete={handleOnboardingComplete} />;
+  }
+
   // Render view based on state
   const renderContent = () => {
     switch (activeView) {
@@ -158,6 +192,7 @@ const App: React.FC = () => {
             onEditTransaction={handleEditTransaction}
             onOpenExpectedIncome={handleOpenExpectedIncome}
             onNavigate={handleNavigate}
+            isPrivacyMode={isPrivacyMode}
           />
         );
       case 'ADD_TRANSACTION':
@@ -191,6 +226,8 @@ const App: React.FC = () => {
             onReset={handleReset} 
             onOpenAdvice={() => setIsAdviceOpen(true)}
             telegramUser={tgUser}
+            onTogglePrivacy={() => setIsPrivacyMode(!isPrivacyMode)}
+            isPrivacyMode={isPrivacyMode}
           />
         );
       
@@ -205,6 +242,12 @@ const App: React.FC = () => {
 
       case 'EDUCATION':
         return <Education subscriptionLevel={subLevel} onBack={() => handleNavigate('HUB')} onGoToSettings={handleGoToSettings} />;
+
+      case 'CALENDAR':
+        return <CalendarView onBack={() => handleNavigate('DASHBOARD')} />;
+
+      case 'SPLIT_BILL':
+        return <SplitBill onBack={() => handleNavigate('HUB')} />;
 
       case 'SETTINGS':
         return (

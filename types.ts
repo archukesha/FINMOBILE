@@ -6,6 +6,8 @@ export enum TransactionType {
   SAVING_WITHDRAWAL = 'SAVING_WITHDRAWAL'
 }
 
+export type Currency = 'RUB' | 'USD' | 'EUR' | 'KZT';
+
 export interface Category {
   id: string;
   name: string;
@@ -13,17 +15,26 @@ export interface Category {
   color: string;
   icon: string;
   isArchived?: boolean;
+  order?: number;
+  budgetLimit?: number; // New: Monthly limit
 }
 
 export interface Transaction {
   id: string;
   amount: number;
+  originalAmount?: number; // For multi-currency
+  currency: Currency; // New
   type: TransactionType;
   categoryId: string;
-  subCategory?: string; // Article
-  date: string; // ISO String
+  subCategory?: string; 
+  date: string; 
   note?: string;
-  goalId?: string; // If tied to a goal
+  goalId?: string;
+}
+
+export interface BudgetLimit {
+    categoryId: string;
+    limit: number;
 }
 
 export interface Goal {
@@ -36,16 +47,9 @@ export interface Goal {
   icon: string;
 }
 
-export interface FinancialStats {
-  income: number;
-  expense: number;
-  savingsChange: number;
-  balance: number;
-}
-
 export interface Subscription {
   id: string;
-  name: string; // "provider" in API spec
+  name: string; 
   amount: number;
   currency: string;
   billingPeriod: 'MONTHLY' | 'YEARLY';
@@ -57,11 +61,11 @@ export interface Subscription {
 export interface Debt {
   id: string;
   type: 'BANK_LOAN' | 'I_OWE' | 'OWE_ME';
-  title: string; // Bank name or Person name
-  totalAmount: number; // Total loan amount or debt
+  title: string; 
+  totalAmount: number; 
   remainingAmount: number;
-  interestRate?: number; // % per year (for banks)
-  monthlyPayment?: number; // Calculated or manual
+  interestRate?: number; 
+  monthlyPayment?: number; 
   termMonths?: number; 
   startDate: string;
   nextPaymentDate?: string;
@@ -82,8 +86,8 @@ export interface Article {
   title: string;
   category: 'BASICS' | 'INVESTING' | 'BUDGET' | 'DEBT';
   description: string;
-  content: string[]; // Array of paragraphs
-  readTime: number; // minutes
+  content: string[];
+  readTime: number; 
   icon: string;
   color: string;
 }
@@ -98,12 +102,23 @@ export type ViewState =
   | 'DEBTS' 
   | 'EDUCATION'
   | 'SETTINGS'
-  | 'REMINDERS';
+  | 'REMINDERS'
+  | 'CALENDAR' // New
+  | 'SPLIT_BILL'; // New
 
-// 4 Levels as requested
 export type SubscriptionLevel = 'FREE' | 'PLUS' | 'PRO' | 'MAX';
 
 export type Theme = 'LIGHT' | 'DARK';
+export type AccentColor = 'INDIGO' | 'PURPLE' | 'ORANGE' | 'EMERALD' | 'ROSE' | 'CYAN';
+
+export const ACCENT_COLORS: Record<AccentColor, { primary: string, focus: string }> = {
+    INDIGO: { primary: '#4f46e5', focus: '#4338ca' },
+    PURPLE: { primary: '#9333ea', focus: '#7e22ce' },
+    ORANGE: { primary: '#f97316', focus: '#ea580c' },
+    EMERALD: { primary: '#10b981', focus: '#059669' },
+    ROSE: { primary: '#e11d48', focus: '#be123c' },
+    CYAN: { primary: '#06b6d4', focus: '#0891b2' },
+};
 
 // --- API & Backend Types ---
 
@@ -113,6 +128,8 @@ export interface UserProfile {
     firstName: string;
     subscriptionLevel: SubscriptionLevel;
     subscriptionExpiresAt?: string | null;
+    currency: Currency;
+    privacyMode: boolean; // New
 }
 
 export interface AuthResponse {
@@ -123,7 +140,7 @@ export interface AuthResponse {
 export interface PaymentInitiateResponse {
     paymentId: string;
     providerPaymentId: string;
-    confirmationUrl: string; // URL for Yookassa redirect
+    confirmationUrl: string; 
 }
 
 export interface PaymentStatusResponse {
@@ -135,28 +152,43 @@ export interface AiAdviceRequest {
     expense: number;
     balance: number;
     topCategory: string;
-    month: string; // "YYYY-MM"
+    month: string; 
+    transactions?: Transaction[]; 
 }
 
-// --- REMINDER TYPES ---
+export interface ParsedTransaction {
+    amount: number;
+    categoryId?: string;
+    note?: string;
+    date?: string;
+    confidence: number;
+}
+
+export interface SmartInsight {
+    type: 'SENTIMENT' | 'GAP_WARNING' | 'GOAL_SUGGESTION';
+    title: string;
+    message: string;
+    icon: string;
+    color: string; 
+}
 
 export type RepeatType = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
-export type ReminderChannel = 'TELEGRAM'; // Removed PUSH as requested
+export type ReminderChannel = 'TELEGRAM'; 
 
 export interface RepeatConfig {
     type: RepeatType;
-    every?: number; // e.g., every 2 days
-    weekDays?: number[]; // 1=Mon, 7=Sun
+    every?: number; 
+    weekDays?: number[]; 
 }
 
 export interface Reminder {
     id: string;
     title: string;
     message?: string;
-    scheduledAt: string; // ISO 8601 with timezone
+    scheduledAt: string; 
     nextRun?: string;
     repeat: RepeatConfig;
-    timezone: string; // e.g. "Europe/Moscow"
+    timezone: string; 
     channels: ReminderChannel[];
     isActive: boolean;
 }
@@ -178,15 +210,13 @@ export interface ReminderSettings {
     enabled: boolean;
     timezone: string;
     defaultChannels: ReminderChannel[];
-    defaultTime: string; // "09:00"
+    defaultTime: string; 
 }
 
 export interface ReminderListResponse {
     items: Reminder[];
     total: number;
 }
-
-// --- Telegram Types ---
 
 export interface TelegramUser {
     id: number;
@@ -206,7 +236,10 @@ export interface TelegramWebApp {
     ready: () => void;
     expand: () => void;
     close: () => void;
+    isVersionAtLeast: (version: string) => boolean;
     openLink: (url: string) => void;
+    openTelegramLink: (url: string) => void;
+    openInvoice: (url: string) => void;
     colorScheme: 'light' | 'dark';
     themeParams: {
         bg_color?: string;
@@ -222,6 +255,31 @@ export interface TelegramWebApp {
     headerColor: string;
     backgroundColor: string;
     onEvent: (eventType: string, eventHandler: () => void) => void;
+    HapticFeedback: {
+        impactOccurred: (style: string) => void;
+        notificationOccurred: (type: string) => void;
+        selectionChanged: () => void;
+    };
+    MainButton: {
+        text: string;
+        color: string;
+        textColor: string;
+        isVisible: boolean;
+        isActive: boolean;
+        show: () => void;
+        hide: () => void;
+        enable: () => void;
+        disable: () => void;
+        onClick: (callback: () => void) => void;
+    };
+    CloudStorage: {
+        setItem: (key: string, value: string, callback?: (error: any, stored: boolean) => void) => void;
+        getItem: (key: string, callback: (error: any, value: string) => void) => void;
+        getItems: (keys: string[], callback: (error: any, values: Record<string, string>) => void) => void;
+        removeItem: (key: string, callback?: (error: any, removed: boolean) => void) => void;
+        removeItems: (keys: string[], callback?: (error: any, removed: boolean) => void) => void;
+        getKeys: (callback: (error: any, keys: string[]) => void) => void;
+    };
 }
 
 declare global {
@@ -229,5 +287,7 @@ declare global {
         Telegram: {
             WebApp: TelegramWebApp;
         };
+        webkitSpeechRecognition: any;
+        SpeechRecognition: any;
     }
 }

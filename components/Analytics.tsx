@@ -91,6 +91,12 @@ const Analytics: React.FC<AnalyticsProps> = ({ categories, subscriptionLevel, on
     setSelectedCategoryId(null);
   };
 
+  const handleShareStory = () => {
+      // Mock share story
+      alert("Генерирую сториз для Telegram...");
+      // Ideally calls window.Telegram.WebApp.shareToStory(...) with a generated image URL
+  };
+
   const filteredTransactions = useMemo(() => {
       if (!selectedCategoryId) return [];
       return txs.filter(t => t.categoryId === selectedCategoryId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -244,6 +250,10 @@ const Analytics: React.FC<AnalyticsProps> = ({ categories, subscriptionLevel, on
          )}
       </div>
 
+      <button onClick={handleShareStory} className="w-full py-4 bg-gradient-to-r from-pink-500 to-rose-500 text-white font-bold rounded-2xl shadow-xl shadow-pink-500/30 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform">
+          <Icon name="camera" size={20} /> Поделиться в Stories
+      </button>
+
       {/* Drill-down List (Only for Category Mode) */}
       {chartMode === 'CATEGORY' && (
           selectedCategoryId ? (
@@ -291,26 +301,6 @@ const Analytics: React.FC<AnalyticsProps> = ({ categories, subscriptionLevel, on
             </div>
         )
       )}
-      
-      {/* Legend/Info for other charts */}
-      {chartMode === 'TREND' && total > 0 && (
-          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-2xl flex items-center gap-3">
-              <Icon name="info" className="text-blue-500" />
-              <p className="text-xs text-blue-700 dark:text-blue-300">
-                  График показывает ежедневную динамику {analysisType === 'EXPENSE' ? 'расходов' : 'доходов'}. Пики соответствуют дням с наибольшими суммами операций.
-              </p>
-          </div>
-      )}
-
-      {chartMode === 'WEEKDAY' && total > 0 && (
-          <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl flex items-center gap-3">
-              <Icon name="calendar" className="text-indigo-500" />
-              <p className="text-xs text-indigo-700 dark:text-indigo-300">
-                  Чем ярче столбец, тем больше операций приходится на этот день недели в среднем за выбранный месяц.
-              </p>
-          </div>
-      )}
-
     </div>
   );
 };

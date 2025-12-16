@@ -4,6 +4,7 @@ import { Debt, TransactionType, SubscriptionLevel } from '../types';
 import { getDebts, saveDebt, deleteDebt, saveTransaction, updateDebt } from '../services/storage';
 import PremiumBlock from './PremiumBlock';
 import Icon from './Icon';
+import SwipeableRow from './SwipeableRow';
 
 interface DebtsProps {
   onBack: () => void;
@@ -93,6 +94,7 @@ const Debts: React.FC<DebtsProps> = ({ onBack, initialTab, subscriptionLevel, on
           id: crypto.randomUUID(),
           amount: amount,
           type: TransactionType.EXPENSE,
+          currency: 'RUB',
           categoryId: 'exp_debt', // Ensure this category exists in constants or storage logic
           date: new Date().toISOString().split('T')[0],
           note: `Платеж по долгу: ${debt.title}`
@@ -151,40 +153,30 @@ const Debts: React.FC<DebtsProps> = ({ onBack, initialTab, subscriptionLevel, on
           {filtered.map(item => {
               const progress = Math.round(((item.totalAmount - item.remainingAmount) / item.totalAmount) * 100);
               return (
-                <div key={item.id} className="bg-white dark:bg-slate-800 p-5 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                    <div className="flex justify-between mb-2">
-                        <div className="font-bold text-lg dark:text-white">{item.title}</div>
-                        <div className="font-black text-slate-900 dark:text-white">{item.remainingAmount.toLocaleString()} ₽</div>
-                    </div>
-                    
-                    {item.nextPaymentDate && (
-                        <div className="text-xs font-bold text-red-500 mb-3 flex items-center gap-1">
-                            <Icon name="calendar" size={12} />
-                            Срок: {new Date(item.nextPaymentDate).toLocaleDateString()}
+                <SwipeableRow key={item.id} onSwipeLeft={() => handleDelete(item.id)} onSwipeRight={() => handleMakePayment(item)} rightIcon="check" rightColor="bg-slate-900 dark:bg-white">
+                    <div className="bg-white dark:bg-slate-800 p-5 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                        <div className="flex justify-between mb-2">
+                            <div className="font-bold text-lg dark:text-white">{item.title}</div>
+                            <div className="font-black text-slate-900 dark:text-white">{item.remainingAmount.toLocaleString()} ₽</div>
                         </div>
-                    )}
+                        
+                        {item.nextPaymentDate && (
+                            <div className="text-xs font-bold text-red-500 mb-3 flex items-center gap-1">
+                                <Icon name="calendar" size={12} />
+                                Срок: {new Date(item.nextPaymentDate).toLocaleDateString()}
+                            </div>
+                        )}
 
-                    <div className="w-full h-3 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden mb-3">
-                        <div className="h-full bg-indigo-500" style={{width: `${progress}%`}}></div>
+                        <div className="w-full h-3 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden mb-3">
+                            <div className="h-full bg-indigo-500" style={{width: `${progress}%`}}></div>
+                        </div>
+                        
+                        <div className="flex justify-between text-xs text-slate-400 font-bold uppercase">
+                            <span>Выплачено {progress}%</span>
+                            {item.monthlyPayment && <span>{Math.round(item.monthlyPayment)} ₽/мес</span>}
+                        </div>
                     </div>
-                    
-                    <div className="flex justify-between text-xs text-slate-400 font-bold uppercase">
-                        <span>Выплачено {progress}%</span>
-                        {item.monthlyPayment && <span>{Math.round(item.monthlyPayment)} ₽/мес</span>}
-                    </div>
-
-                    <div className="mt-4 pt-4 border-t border-slate-50 dark:border-slate-700 flex gap-2">
-                        <button 
-                            onClick={() => handleMakePayment(item)}
-                            className="flex-1 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-sm active:scale-95 transition-transform"
-                        >
-                            Внести платеж
-                        </button>
-                         <button onClick={() => handleDelete(item.id)} className="px-4 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/40">
-                             <Icon name="trash-2" size={18} />
-                         </button>
-                    </div>
-                </div>
+                </SwipeableRow>
               );
           })}
       </div>

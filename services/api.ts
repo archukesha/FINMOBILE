@@ -1,224 +1,308 @@
 
+import { GoogleGenAI, Schema, Type } from "@google/genai";
 import { 
     AuthResponse, PaymentInitiateResponse, PaymentStatusResponse, AiAdviceRequest, 
     SubscriptionLevel, UserProfile, Subscription, 
-    Reminder, ReminderSettings, ReminderListResponse, ReminderHistoryItem 
+    Reminder, ReminderSettings, ReminderListResponse, ReminderHistoryItem,
+    ParsedTransaction, Category, Transaction, SmartInsight
 } from '../types';
 import { getSubscriptions as getLocalSubs, saveSubscription as saveLocalSub, deleteSubscription as deleteLocalSub } from './storage';
 
 /**
- * MOCK API SERVICE
- * 
- * В реальном проекте здесь будут fetch запросы к вашему бэкенду.
+ * API SERVICE
  */
 
 const API_BASE_URL = 'https://api.your-backend.com/v1'; 
 
+// Initialize Gemini AI
+const getApiKey = () => {
+    try {
+        if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+            return process.env.API_KEY;
+        }
+    } catch (e) {
+        // Ignore error
+    }
+    return '';
+};
+
+const genAI = new GoogleGenAI({ apiKey: getApiKey() });
+
 // Helper to simulate network delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Mock Data Store
-let mockReminders: Reminder[] = [
-    { 
-        id: 'r_1', 
-        title: 'Заполнить расходы', 
-        message: 'Не забудь внести траты за сегодня!', 
-        scheduledAt: new Date().toISOString(), 
-        nextRun: new Date(Date.now() + 86400000).toISOString(),
-        repeat: { type: 'DAILY', every: 1 }, 
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        channels: ['TELEGRAM'],
-        isActive: true 
-    },
-    { 
-        id: 'r_2', 
-        title: 'Оплатить интернет', 
-        message: 'Списание 500р', 
-        scheduledAt: new Date(Date.now() + 100000000).toISOString(), 
-        nextRun: new Date(Date.now() + 100000000).toISOString(),
-        repeat: { type: 'MONTHLY', every: 1 }, 
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        channels: ['TELEGRAM'],
-        isActive: false 
-    }
-];
-
-let mockHistory: ReminderHistoryItem[] = [
-    { 
-        id: 'h_1', 
-        reminderId: 'r_1', 
-        title: 'Заполнить расходы', 
-        scheduledAt: new Date(Date.now() - 86400000).toISOString(), 
-        sentAt: new Date(Date.now() - 86395000).toISOString(), 
-        status: 'SENT',
-        providerInfo: { provider: 'TELEGRAM' }
-    },
-    { 
-        id: 'h_2', 
-        reminderId: 'r_1', 
-        title: 'Заполнить расходы', 
-        scheduledAt: new Date(Date.now() - 172800000).toISOString(), 
-        sentAt: new Date(Date.now() - 172800000).toISOString(), 
-        status: 'FAILED',
-        providerInfo: { provider: 'TELEGRAM', error: 'User blocked bot' }
-    }
-];
-
-let mockReminderSettings: ReminderSettings = { 
-    enabled: true, 
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    defaultChannels: ['TELEGRAM'],
-    defaultTime: "09:00"
+// Mock Data Helpers for Reminders (Persisted to LocalStorage)
+const getRemindersFromStorage = (): Reminder[] => {
+    try {
+        const data = localStorage.getItem('finbot_mock_reminders');
+        return data ? JSON.parse(data) : [];
+    } catch { return []; }
 };
+
+const saveRemindersToStorage = (reminders: Reminder[]) => {
+    localStorage.setItem('finbot_mock_reminders', JSON.stringify(reminders));
+};
+
+const getReminderHistoryFromStorage = (): ReminderHistoryItem[] => {
+    try {
+        const data = localStorage.getItem('finbot_mock_reminder_history');
+        return data ? JSON.parse(data) : [];
+    } catch { return []; }
+};
+
+const getReminderSettingsFromStorage = (): ReminderSettings => {
+    try {
+        const data = localStorage.getItem('finbot_mock_reminder_settings');
+        return data ? JSON.parse(data) : { 
+            enabled: true, 
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            defaultChannels: ['TELEGRAM'],
+            defaultTime: "09:00"
+        };
+    } catch { return { 
+        enabled: true, 
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        defaultChannels: ['TELEGRAM'],
+        defaultTime: "09:00"
+    };}
+};
+
+const saveReminderSettingsToStorage = (settings: ReminderSettings) => {
+    localStorage.setItem('finbot_mock_reminder_settings', JSON.stringify(settings));
+};
+
 
 export const api = {
     auth: {
         login: async (initData: string): Promise<AuthResponse> => {
-            console.log('[API] Logging in...');
-            await delay(800); 
+            await delay(500); 
             return {
-                token: 'mock_jwt_token_xyz123',
+                token: 'mock_jwt',
                 user: {
                     id: 'user_001',
                     telegramId: 12345678,
                     firstName: 'User',
                     subscriptionLevel: (localStorage.getItem('finbot_sub_level') as SubscriptionLevel) || 'FREE',
-                    subscriptionExpiresAt: localStorage.getItem('finbot_sub_expiry') || null
+                    subscriptionExpiresAt: null,
+                    currency: 'RUB',
+                    privacyMode: false
                 }
             };
         },
         getMe: async (): Promise<UserProfile> => {
-             await delay(400);
+             await delay(300);
              return {
                 id: 'user_001',
                 telegramId: 12345678,
                 firstName: 'User',
                 subscriptionLevel: (localStorage.getItem('finbot_sub_level') as SubscriptionLevel) || 'FREE',
-                subscriptionExpiresAt: localStorage.getItem('finbot_sub_expiry') || null
+                subscriptionExpiresAt: null,
+                currency: 'RUB',
+                privacyMode: false
              };
         }
     },
 
+    // ... Payment (Same as before) ...
     payment: {
         createPayment: async (plan: string): Promise<PaymentInitiateResponse> => {
-            console.log(`[API] POST /payment/create { plan: ${plan} }`);
-            await delay(1500);
+            await delay(1000);
             return {
                 paymentId: `pay_${Date.now()}`,
                 providerPaymentId: `yoo_${Date.now()}`,
-                confirmationUrl: 'https://yoomoney.ru/checkout/payments/v2/contract?orderId=test_order' 
+                confirmationUrl: 'https://yoomoney.ru' 
             };
         },
         checkStatus: async (providerPaymentId: string): Promise<PaymentStatusResponse> => {
-            await delay(800);
+            await delay(500);
             return { status: 'SUCCEEDED' };
         }
     },
 
+    // ... Subscriptions (Same as before) ...
     subscriptions: {
-        list: async (): Promise<Subscription[]> => {
-            await delay(600);
-            return getLocalSubs();
-        },
-        create: async (sub: Subscription): Promise<Subscription> => {
-            await delay(600);
-            saveLocalSub(sub);
-            return sub;
-        },
-        update: async (id: string, updates: Partial<Subscription>): Promise<Subscription> => {
-            await delay(600);
-            const subs = getLocalSubs();
-            const existing = subs.find(s => s.id === id);
-            if (existing) {
-                const updated = { ...existing, ...updates };
-                saveLocalSub(updated);
-                return updated;
-            }
-            throw new Error('Subscription not found');
-        },
-        delete: async (id: string): Promise<void> => {
-            await delay(600);
-            deleteLocalSub(id);
-        }
+        list: async (): Promise<Subscription[]> => { await delay(300); return getLocalSubs(); },
+        create: async (sub: Subscription): Promise<Subscription> => { await delay(300); saveLocalSub(sub); return sub; },
+        update: async (id: string, updates: Partial<Subscription>): Promise<Subscription> => { await delay(300); const s = getLocalSubs().find(x=>x.id===id); if(s) saveLocalSub({...s, ...updates}); return s!; },
+        delete: async (id: string): Promise<void> => { await delay(300); deleteLocalSub(id); }
     },
 
+    // ... Reminders (Persisted) ...
     reminders: {
         list: async (limit = 20, offset = 0): Promise<ReminderListResponse> => {
-            console.log(`[API] GET /reminders?limit=${limit}`);
-            await delay(500);
-            return {
-                items: mockReminders.slice(offset, offset + limit),
-                total: mockReminders.length
-            };
+            await delay(300);
+            const items = getRemindersFromStorage();
+            return { items: items.slice(offset, offset + limit), total: items.length };
         },
         create: async (reminder: Omit<Reminder, 'id' | 'nextRun'>): Promise<Reminder> => {
-            console.log('[API] POST /reminders', reminder);
-            await delay(800);
-            const newReminder: Reminder = {
-                ...reminder,
-                id: `r_${Date.now()}`,
-                nextRun: reminder.scheduledAt // Simplified logic for mock
-            };
-            mockReminders.push(newReminder);
-            return newReminder;
+            await delay(300);
+            const items = getRemindersFromStorage();
+            const newR = { ...reminder, id: `r_${Date.now()}`, nextRun: reminder.scheduledAt };
+            items.push(newR);
+            saveRemindersToStorage(items);
+            return newR;
         },
         update: async (id: string, updates: Partial<Reminder>): Promise<Reminder> => {
-            console.log(`[API] PATCH /reminders/${id}`, updates);
-            await delay(500);
-            const idx = mockReminders.findIndex(r => r.id === id);
-            if (idx === -1) throw new Error('Reminder not found');
-            mockReminders[idx] = { ...mockReminders[idx], ...updates };
-            return mockReminders[idx];
+            await delay(300);
+            const items = getRemindersFromStorage();
+            const idx = items.findIndex(r => r.id === id);
+            if (idx !== -1) {
+                items[idx] = { ...items[idx], ...updates };
+                saveRemindersToStorage(items);
+                return items[idx];
+            }
+            throw new Error("Reminder not found");
         },
         delete: async (id: string): Promise<void> => {
-            console.log(`[API] DELETE /reminders/${id}`);
-            await delay(500);
-            mockReminders = mockReminders.filter(r => r.id !== id);
-        },
-        run: async (id: string): Promise<{ status: string }> => {
-            console.log(`[API] POST /reminders/${id}/run`);
-            await delay(1500);
-            const r = mockReminders.find(rem => rem.id === id);
-            if (r) {
-                mockHistory.unshift({
-                    id: `h_${Date.now()}`,
-                    reminderId: r.id,
-                    title: r.title,
-                    scheduledAt: new Date().toISOString(),
-                    sentAt: new Date().toISOString(),
-                    status: 'SENT',
-                    providerInfo: { provider: 'TELEGRAM' }
-                });
-            }
-            return { status: 'OK' };
-        },
-        getHistory: async (limit = 20, offset = 0): Promise<ReminderHistoryItem[]> => {
-            console.log(`[API] GET /reminders/history`);
-            await delay(500);
-            return mockHistory.slice(offset, offset + limit);
-        },
-        getSettings: async (): Promise<ReminderSettings> => {
             await delay(300);
-            return mockReminderSettings;
+            const items = getRemindersFromStorage();
+            const newItems = items.filter(r => r.id !== id);
+            saveRemindersToStorage(newItems);
         },
-        updateSettings: async (settings: Partial<ReminderSettings>): Promise<ReminderSettings> => {
-            console.log('[API] PATCH /reminders/prefs', settings);
-            await delay(500);
-            mockReminderSettings = { ...mockReminderSettings, ...settings };
-            return mockReminderSettings;
+        run: async (id: string): Promise<{ status: string }> => { await delay(500); return { status: 'OK' }; },
+        getHistory: async (): Promise<ReminderHistoryItem[]> => { 
+            await delay(300); 
+            return getReminderHistoryFromStorage(); 
+        },
+        getSettings: async (): Promise<ReminderSettings> => { 
+            await delay(300); 
+            return getReminderSettingsFromStorage(); 
+        },
+        updateSettings: async (settings: Partial<ReminderSettings>): Promise<ReminderSettings> => { 
+            await delay(300); 
+            const current = getReminderSettingsFromStorage();
+            const updated = {...current, ...settings};
+            saveReminderSettingsToStorage(updated);
+            return updated; 
         }
     },
 
     ai: {
+        // 1. RAG Chat
         getAdvice: async (context: AiAdviceRequest): Promise<string> => {
-            console.log('[API] Requesting AI advice...');
-            await delay(2000); 
-            if (context.balance < 0) {
-                return "Внимание! Расходы превышают доходы. Рекомендую проанализировать подписки и мелкие траты.";
-            } else if (context.balance > 50000) {
-                return "Отличный профицит! Рассмотрите открытие вклада или ИИС для пассивного дохода.";
-            } else {
-                return "Бюджет сбалансирован. Попробуйте откладывать 10% от любого поступления.";
+            // Simplify transactions for prompt to save tokens
+            const txSummary = context.transactions?.slice(0, 50).map(t => 
+                `${t.date}: ${t.amount}RUB (${t.type}) - Cat:${t.categoryId} Note:${t.note||''}`
+            ).join('\n') || "Нет операций.";
+
+            const prompt = `
+            Ты - финансовый помощник. 
+            Контекст пользователя за ${context.month}:
+            Доход: ${context.income}, Расход: ${context.expense}, Баланс: ${context.balance}.
+            Топ категория трат: ${context.topCategory}.
+            
+            Последние операции:
+            ${txSummary}
+
+            Задача: Ответь на вопрос пользователя или дай краткий совет. Если пользователь спрашивает про конкретные траты ("сколько я потратил на такси?"), используй список операций выше. Отвечай кратко, с эмодзи.
+            `;
+
+            try {
+                const response = await genAI.models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: prompt,
+                });
+                return response.text || "Ошибка ИИ.";
+            } catch (error) {
+                console.error("Gemini Error:", error);
+                return "Мозг перегружен. Попробуй позже.";
+            }
+        },
+
+        // 2. Receipt Scanning (Vision)
+        parseReceipt: async (base64Image: string): Promise<ParsedTransaction> => {
+            try {
+                const response = await genAI.models.generateContent({
+                    model: 'gemini-2.5-flash-image',
+                    contents: {
+                        parts: [
+                            { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
+                            { text: "Analyze this receipt. Return JSON with 'total' (number), 'date' (YYYY-MM-DD), 'vendor' (string used for note), 'category' (guess one of: exp_food, exp_transport, exp_shopping, exp_health, exp_cafe). If unsure category, use exp_other." }
+                        ]
+                    },
+                    config: {
+                         responseMimeType: "application/json",
+                    }
+                });
+
+                const json = JSON.parse(response.text);
+                return {
+                    amount: json.total || 0,
+                    date: json.date || new Date().toISOString().split('T')[0],
+                    note: json.vendor || "Чек",
+                    categoryId: json.category || "exp_other",
+                    confidence: 0.9
+                };
+            } catch (e) {
+                console.error("Receipt Parsing Error", e);
+                return { amount: 0, confidence: 0 };
+            }
+        },
+
+        // 3. Voice Parsing (NLP)
+        parseVoiceCommand: async (transcript: string, categories: Category[]): Promise<ParsedTransaction> => {
+            const catList = categories.map(c => `${c.id} (${c.name})`).join(', ');
+            const prompt = `
+            Parse this financial command: "${transcript}".
+            Available categories: ${catList}.
+            Return JSON: { "amount": number, "categoryId": string, "note": string }.
+            If category is unclear, map to best fit or 'exp_other'.
+            Example: "Spent 500 on taxi" -> {"amount": 500, "categoryId": "exp_transport", "note": "taxi"}
+            `;
+            
+            try {
+                const response = await genAI.models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: prompt,
+                    config: { responseMimeType: "application/json" }
+                });
+                return JSON.parse(response.text);
+            } catch (e) {
+                return { amount: 0, confidence: 0 };
+            }
+        },
+
+        // 4. Auto-Categorization
+        suggestCategory: async (note: string, categories: Category[]): Promise<string> => {
+             const catList = categories.map(c => `${c.id} (${c.name})`).join(', ');
+             const prompt = `Classify this expense: "${note}". Choose ID from: ${catList}. Return ONLY the categoryId string.`;
+             try {
+                const response = await genAI.models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: prompt,
+                });
+                return response.text.trim().replace(/['"]/g, '');
+             } catch {
+                 return 'exp_other';
+             }
+        },
+
+        // 5. Smart Insights & Goals
+        getSmartInsights: async (transactions: Transaction[]): Promise<SmartInsight[]> => {
+            const recent = transactions.slice(0, 30).map(t => `${t.date}: ${t.amount} ${t.type} (${t.note})`).join('\n');
+            const prompt = `Analyze: ${recent}. Generate 1 JSON insight: { "type": "SENTIMENT"|"GAP_WARNING"|"GOAL_SUGGESTION", "title": "Short", "message": "RU", "icon": "Lucide", "color": "Tailwind" }`;
+            try {
+                 const response = await genAI.models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: prompt,
+                    config: { responseMimeType: "application/json" }
+                });
+                return [JSON.parse(response.text)];
+            } catch (e) { return []; }
+        },
+
+        suggestGoal: async (transactions: Transaction[]): Promise<{title: string, amount: number, message: string}> => {
+            const recent = transactions.slice(0, 50).map(t => `${t.amount} ${t.type} on ${t.note}`).join('\n');
+            const prompt = `Based on these expenses, suggest a savings goal. E.g. "Cut coffee to save for Phone". Return JSON: { "title": "Goal Name", "amount": number (target), "message": "Reasoning" }.`;
+            try {
+                const response = await genAI.models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: prompt,
+                    config: { responseMimeType: "application/json" }
+                });
+                return JSON.parse(response.text);
+            } catch (e) {
+                return { title: 'Накопления', amount: 50000, message: 'Стандартная цель' };
             }
         }
     }

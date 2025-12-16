@@ -5,6 +5,7 @@ import { getCategories, saveTransaction } from '../services/storage';
 import { api } from '../services/api';
 import PremiumBlock from './PremiumBlock';
 import Icon from './Icon';
+import SwipeableRow from './SwipeableRow';
 
 interface SubscriptionsProps {
   onBack: () => void;
@@ -87,6 +88,7 @@ const Subscriptions: React.FC<SubscriptionsProps> = ({ onBack, onUpdate, subscri
         id: crypto.randomUUID(),
         amount: sub.amount,
         type: TransactionType.EXPENSE,
+        currency: 'RUB',
         categoryId: sub.categoryId,
         date: new Date().toISOString().split('T')[0],
         note: `Подписка: ${sub.name}`
@@ -135,33 +137,26 @@ const Subscriptions: React.FC<SubscriptionsProps> = ({ onBack, onUpdate, subscri
                 </div>
             ) : (
                 externalSubs.map(sub => (
-                    <div key={sub.id} className="bg-white dark:bg-slate-800 p-5 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow group">
-                        <div className="flex justify-between items-start mb-4">
-                            <div className="flex gap-4 items-center">
-                                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xl font-bold uppercase shadow-sm">
-                                    {sub.name.charAt(0)}
+                    <SwipeableRow key={sub.id} onSwipeLeft={() => handleDeleteExternal(sub.id)} onSwipeRight={() => handleLogPayment(sub)} rightIcon="check" rightColor="bg-emerald-500">
+                        <div className="bg-white dark:bg-slate-800 p-5 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow group">
+                            <div className="flex justify-between items-start">
+                                <div className="flex gap-4 items-center">
+                                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xl font-bold uppercase shadow-sm">
+                                        {sub.name.charAt(0)}
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-slate-800 dark:text-white text-lg">{sub.name}</h4>
+                                        <p className="text-xs font-medium text-slate-400">{sub.amount} ₽ / {sub.billingPeriod === 'MONTHLY' ? 'мес' : 'год'}</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h4 className="font-bold text-slate-800 dark:text-white text-lg">{sub.name}</h4>
-                                    <p className="text-xs font-medium text-slate-400">{sub.amount} ₽ / {sub.billingPeriod === 'MONTHLY' ? 'мес' : 'год'}</p>
+                                <div className={`text-[10px] font-bold px-2.5 py-1.5 rounded-lg uppercase tracking-wide ${
+                                    new Date(sub.nextPaymentDate) < new Date() ? 'bg-red-50 text-red-500' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
+                                }`}>
+                                    {new Date(sub.nextPaymentDate).toLocaleDateString(undefined, {month:'short', day:'numeric'})}
                                 </div>
                             </div>
-                            <div className={`text-[10px] font-bold px-2.5 py-1.5 rounded-lg uppercase tracking-wide ${
-                                new Date(sub.nextPaymentDate) < new Date() ? 'bg-red-50 text-red-500' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
-                            }`}>
-                                {new Date(sub.nextPaymentDate).toLocaleDateString(undefined, {month:'short', day:'numeric'})}
-                            </div>
                         </div>
-                        
-                        <div className="flex gap-3">
-                            <button onClick={() => handleLogPayment(sub)} className="flex-1 py-3 bg-slate-50 dark:bg-slate-700/50 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 active:scale-95">
-                                <Icon name="check" size={14} /> Записать платеж
-                            </button>
-                            <button onClick={() => handleDeleteExternal(sub.id)} className="w-12 flex items-center justify-center bg-red-50 dark:bg-red-900/10 text-red-500 rounded-xl hover:bg-red-100 transition-colors active:scale-95">
-                                <Icon name="trash-2" size={16} />
-                            </button>
-                        </div>
-                    </div>
+                    </SwipeableRow>
                 ))
             )}
           </div>

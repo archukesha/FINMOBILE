@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -12,12 +13,13 @@
         theme: {
           extend: {
             colors: {
-              primary: '#4f46e5', // Indigo 600
+              // Dynamic Primary Color via CSS Variable
+              primary: 'var(--color-primary)', 
+              'primary-focus': 'var(--color-primary-focus)',
+              'primary-content': '#ffffff',
+              
               secondary: '#64748b',
-              accent: '#f59e0b',
               dark: '#0f172a',
-              card: 'rgba(255, 255, 255, 0.7)',
-              'card-dark': 'rgba(30, 41, 59, 0.7)',
             },
             fontFamily: {
               sans: ['Inter', 'system-ui', 'sans-serif'],
@@ -28,6 +30,7 @@
               'pop': 'pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
               'pulse-slow': 'pulse 3s infinite',
               'float': 'float 6s ease-in-out infinite',
+              'shimmer': 'shimmer 1.5s infinite linear',
             },
             keyframes: {
               pageEnter: {
@@ -45,6 +48,10 @@
               float: {
                 '0%, 100%': { transform: 'translateY(0)' },
                 '50%': { transform: 'translateY(-10px)' },
+              },
+              shimmer: {
+                '0%': { backgroundPosition: '-1000px 0' },
+                '100%': { backgroundPosition: '1000px 0' },
               }
             }
           }
@@ -54,6 +61,11 @@
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap');
       
+      :root {
+        --color-primary: #4f46e5; /* Indigo 600 Default */
+        --color-primary-focus: #4338ca;
+      }
+
       body {
         font-family: 'Inter', sans-serif;
         -webkit-tap-highlight-color: transparent;
@@ -62,24 +74,55 @@
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       
-      /* Glassmorphism Utilities */
+      /* Glassmorphism Utilities 2.0 */
       .glass {
-        background: rgba(255, 255, 255, 0.85);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
       }
       .dark .glass {
-        background: rgba(15, 23, 42, 0.85);
+        background: rgba(15, 23, 42, 0.6);
       }
       
       .glass-card {
-        background: linear-gradient(145deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.6) 100%);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(255,255,255,0.4);
+        background: linear-gradient(145deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.4) 100%);
+        backdrop-filter: blur(24px) saturate(180%);
+        border: 1px solid rgba(255,255,255,0.5);
       }
       .dark .glass-card {
-        background: linear-gradient(145deg, rgba(30,41,59,0.9) 0%, rgba(15,23,42,0.6) 100%);
-        border: 1px solid rgba(255,255,255,0.05);
+        background: linear-gradient(145deg, rgba(30,41,59,0.7) 0%, rgba(15,23,42,0.4) 100%);
+        border: 1px solid rgba(255,255,255,0.08);
+      }
+
+      /* Swipe Actions Styles */
+      .swipe-container {
+        display: flex;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+      .swipe-container::-webkit-scrollbar { display: none; }
+      .swipe-item {
+        scroll-snap-align: center;
+        flex: 0 0 100%;
+      }
+      .swipe-action {
+        flex: 0 0 80px;
+        scroll-snap-align: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      /* Skeleton Loading */
+      .skeleton {
+        background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+        background-size: 1000px 100%;
+        animation: shimmer 2s infinite linear;
+      }
+      .dark .skeleton {
+        background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
       }
 
       /* Safe Area */
@@ -87,18 +130,15 @@
         padding-bottom: env(safe-area-inset-bottom);
       }
     </style>
-  <script type="importmap">
+<script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@18.3.1?dev",
-    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client?dev",
-    "react-dom": "https://esm.sh/react-dom@18.3.1?dev",
-    "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime?dev",
-    "recharts": "https://esm.sh/recharts@2.12.7?external=react,react-dom&dev",
-    "@google/genai": "https://esm.sh/@google/genai@0.1.1",
-    "lucide-react": "https://esm.sh/lucide-react@0.330.0?external=react&dev",
+    "react": "https://esm.sh/react@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/"
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.33.0"
   }
 }
 </script>
