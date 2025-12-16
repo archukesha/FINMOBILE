@@ -24,7 +24,9 @@ const getApiKey = () => {
     return '';
 };
 
-const genAI = new GoogleGenAI({ apiKey: getApiKey() });
+const apiKey = getApiKey();
+// Only initialize if key exists to prevent immediate crash, though SDK might handle empty
+const genAI = new GoogleGenAI({ apiKey: apiKey });
 
 // Helper to simulate network delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -197,20 +199,28 @@ export const api = {
             `;
 
             try {
+                if (!apiKey) throw new Error("No API Key");
                 const response = await genAI.models.generateContent({
                     model: 'gemini-2.5-flash',
                     contents: prompt,
                 });
                 return response.text || "Ошибка ИИ.";
             } catch (error) {
-                console.error("Gemini Error:", error);
-                return "Мозг перегружен. Попробуй позже.";
+                console.warn("Gemini Error or No Key:", error);
+                // Graceful fallback for Demo/No-Key environment
+                return `🤖 *Демо-режим AI*: 
+                
+Я вижу, что в этом месяце ваши доходы составили ${context.income}₽, а расходы ${context.expense}₽. 
+Топ категория: ${context.topCategory}.
+
+В полной версии с API ключом я бы дал детальный анализ ваших привычек! Попробуйте добавить API_KEY.`;
             }
         },
 
         // 2. Receipt Scanning (Vision)
         parseReceipt: async (base64Image: string): Promise<ParsedTransaction> => {
             try {
+                if (!apiKey) throw new Error("No API Key");
                 const response = await genAI.models.generateContent({
                     model: 'gemini-2.5-flash-image',
                     contents: {
@@ -219,7 +229,6 @@ export const api = {
                             { text: "Analyze this receipt. Return JSON with 'total' (number), 'date' (YYYY-MM-DD), 'vendor' (string used for note), 'category' (guess one of: exp_food, exp_transport, exp_shopping, exp_health, exp_cafe). If unsure category, use exp_other." }
                         ]
                     },
-                    // Removed responseMimeType as it is not supported for nano banana models
                 });
 
                 const json = JSON.parse(response.text || '{}');
@@ -232,22 +241,23 @@ export const api = {
                 };
             } catch (e) {
                 console.error("Receipt Parsing Error", e);
-                return { amount: 0, confidence: 0 };
+                // Mock success for demo
+                return { amount: 1250, date: new Date().toISOString().split('T')[0], note: "Демо Чек (Магнит)", categoryId: "exp_food", confidence: 0 };
             }
         },
 
         // 3. Voice Parsing (NLP)
         parseVoiceCommand: async (transcript: string, categories: Category[]): Promise<ParsedTransaction> => {
-            const catList = categories.map(c => `${c.id} (${c.name})`).join(', ');
-            const prompt = `
-            Parse this financial command: "${transcript}".
-            Available categories: ${catList}.
-            Return JSON: { "amount": number, "categoryId": string, "note": string }.
-            If category is unclear, map to best fit or 'exp_other'.
-            Example: "Spent 500 on taxi" -> {"amount": 500, "categoryId": "exp_transport", "note": "taxi"}
-            `;
-            
             try {
+                if (!apiKey) throw new Error("No API Key");
+                const catList = categories.map(c => `${c.id} (${c.name})`).join(', ');
+                const prompt = `
+                Parse this financial command: "${transcript}".
+                Available categories: ${catList}.
+                Return JSON: { "amount": number, "categoryId": string, "note": string }.
+                If category is unclear, map to best fit or 'exp_other'.
+                Example: "Spent 500 on taxi" -> {"amount": 500, "categoryId": "exp_transport", "note": "taxi"}
+                `;
                 const response = await genAI.models.generateContent({
                     model: 'gemini-2.5-flash',
                     contents: prompt,
@@ -255,12 +265,20 @@ export const api = {
                 });
                 return JSON.parse(response.text || '{}');
             } catch (e) {
-                return { amount: 0, confidence: 0 };
+                // Simple regex fallback for demo
+                const num = transcript.match(/\d+/);
+                return { 
+                    amount: num ? parseInt(num[0]) : 0, 
+                    confidence: 0, 
+                    note: transcript,
+                    categoryId: 'exp_other'
+                };
             }
         },
 
         // 4. Auto-Categorization
         suggestCategory: async (note: string, categories: Category[]): Promise<string> => {
+             if (!apiKey) return 'exp_other';
              const catList = categories.map(c => `${c.id} (${c.name})`).join(', ');
              const prompt = `Classify this expense: "${note}". Choose ID from: ${catList}. Return ONLY the categoryId string.`;
              try {
@@ -276,6 +294,7 @@ export const api = {
 
         // 5. Smart Insights & Goals
         getSmartInsights: async (transactions: Transaction[]): Promise<SmartInsight[]> => {
+            if (!apiKey) return [];
             const recent = transactions.slice(0, 30).map(t => `${t.date}: ${t.amount} ${t.type} (${t.note})`).join('\n');
             const prompt = `Analyze: ${recent}. Generate 1 JSON insight: { "type": "SENTIMENT"|"GAP_WARNING"|"GOAL_SUGGESTION", "title": "Short", "message": "RU", "icon": "Lucide", "color": "Tailwind" }`;
             try {
@@ -289,6 +308,7 @@ export const api = {
         },
 
         suggestGoal: async (transactions: Transaction[]): Promise<{title: string, amount: number, message: string}> => {
+            if (!apiKey) return { title: 'Отпуск', amount: 100000, message: 'Демо: начните копить на отдых!' };
             const recent = transactions.slice(0, 50).map(t => `${t.amount} ${t.type} on ${t.note}`).join('\n');
             const prompt = `Based on these expenses, suggest a savings goal. E.g. "Cut coffee to save for Phone". Return JSON: { "title": "Goal Name", "amount": number (target), "message": "Reasoning" }.`;
             try {

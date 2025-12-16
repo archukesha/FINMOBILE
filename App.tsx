@@ -233,6 +233,7 @@ const App: React.FC = () => {
             telegramUser={tgUser}
             onTogglePrivacy={() => setIsPrivacyMode(!isPrivacyMode)}
             isPrivacyMode={isPrivacyMode}
+            onShowToast={showToast}
           />
         );
       

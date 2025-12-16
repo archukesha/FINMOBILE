@@ -109,7 +109,7 @@ const Reminders: React.FC<RemindersProps> = ({ onBack }) => {
                   </div>
 
                   <div className="flex gap-2 border-t border-slate-50 dark:border-slate-700 pt-4">
-                      <button onClick={() => handleRunNow(r.id)} className="flex-1 py-3 bg-slate-50 dark:bg-slate-700/50 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl hover:bg-slate-100 transition-colors">Тест</button>
+                      <button onClick={() => handleRunNow(r.id)} className="flex-1 py-3 bg-slate-50 dark:bg-slate-700/50 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl hover:bg-slate-100 transition-colors">Проверить</button>
                       <button onClick={() => { setEditingReminder(r); setIsModalOpen(true); }} className="w-12 flex items-center justify-center bg-slate-50 dark:bg-slate-700/50 text-slate-600 rounded-xl hover:bg-slate-100">
                           <Icon name="edit-2" size={16} />
                       </button>

@@ -96,8 +96,9 @@ const ReminderEditModal: React.FC<ReminderEditModalProps> = ({ isOpen, onClose, 
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-                <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-2xl">
+                <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-2xl relative">
                     <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1 pl-1">Дата</label>
+                    {/* HTML5 date input format depends on browser locale, usually localized on mobile */}
                     <input type="date" className="w-full bg-transparent font-bold text-slate-700 dark:text-white outline-none" value={date} onChange={e => setDate(e.target.value)} required />
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-2xl">

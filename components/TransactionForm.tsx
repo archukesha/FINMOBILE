@@ -121,6 +121,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      // Strict masking: allow only numbers and math symbols
       const val = e.target.value.replace(/[^0-9.,+\-*/() ]/g, '');
       setAmountInput(val);
   };
@@ -571,7 +572,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6 flex-1">
+      <form onSubmit={handleSubmit} className="space-y-6 flex-1 flex flex-col">
         
         {/* Amount with Currency & Calculator */}
         <div className="text-center">
@@ -634,7 +635,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
         {/* Category Grid */}
         {type !== TransactionType.SAVING_DEPOSIT && (
-          <div>
+          <div className="flex-1 flex flex-col min-h-0">
             <div className="flex justify-between items-center mb-3">
                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Категория</label>
                <button 
@@ -646,7 +647,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                </button>
             </div>
             
-            <div className="grid grid-cols-4 gap-3 max-h-60 overflow-y-auto no-scrollbar pb-4">
+            {/* Limit height for grid to prevent pushing save button off */}
+            <div className="grid grid-cols-4 gap-3 overflow-y-auto no-scrollbar h-48 pb-2 content-start">
               {filteredCategories.map((cat, index) => (
                 <div
                     key={cat.id}
@@ -776,7 +778,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         )}
 
         {/* Buttons */}
-        <div className="flex flex-col gap-3 mt-8 pb-4">
+        <div className="flex flex-col gap-3 mt-4 pb-4">
           <button
             type="submit"
             className="w-full py-4 bg-primary text-white font-bold rounded-2xl shadow-xl shadow-primary/30 hover:opacity-90 transition-transform active:scale-[0.98] flex justify-center items-center gap-2"

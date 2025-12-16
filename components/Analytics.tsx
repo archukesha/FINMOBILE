@@ -70,17 +70,21 @@ const Analytics: React.FC<AnalyticsProps> = ({ categories, subscriptionLevel, on
       const targetType = analysisType === 'EXPENSE' ? TransactionType.EXPENSE : TransactionType.INCOME;
 
       txs.filter(t => t.type === targetType).forEach(t => {
-          const day = new Date(t.date).getDay(); // 0 = Sun, 1 = Mon...
-          sums[day] += t.amount;
+          // Fix: Ensure we parse the date string "YYYY-MM-DD" correctly to avoid timezone shifts
+          const parts = t.date.split('-');
+          const localDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+          const day = localDate.getDay(); // 0 = Sun, 1 = Mon...
+          
+          // Map to index: 0=Mon, 1=Tue ... 6=Sun
+          const index = day === 0 ? 6 : day - 1;
+          sums[index] += t.amount;
       });
 
-      // Shift to start from Monday: Mon(1), Tue(2)... Sun(0)
       const labels = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-      const mapIndex = [1, 2, 3, 4, 5, 6, 0];
       
       return labels.map((label, i) => ({
           name: label,
-          value: sums[mapIndex[i]]
+          value: sums[i]
       }));
   }, [txs, analysisType]);
 
@@ -261,7 +265,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ categories, subscriptionLevel, on
             <div className="animate-in slide-in-from-bottom-5">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="font-bold text-slate-800 dark:text-white">Операции: {categoryData.find(d => d.id === selectedCategoryId)?.name}</h3>
-                    <button onClick={() => setSelectedCategoryId(null)} className="text-xs font-bold text-blue-500">Назад ко всем</button>
+                    <button onClick={() => setSelectedCategoryId(null)} className="px-4 py-2 bg-blue-100 text-blue-600 rounded-xl text-sm font-bold active:scale-95 transition-transform">Назад ко всем</button>
                 </div>
                 <div className="space-y-3">
                     {filteredTransactions.map(tx => (

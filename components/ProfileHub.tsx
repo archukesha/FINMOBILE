@@ -13,9 +13,10 @@ interface ProfileHubProps {
   telegramUser?: TelegramUser | null;
   onTogglePrivacy: () => void;
   isPrivacyMode: boolean;
+  onShowToast?: (msg: string, type: 'success' | 'error') => void;
 }
 
-const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, onReset, onOpenAdvice, telegramUser, onTogglePrivacy, isPrivacyMode }) => {
+const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, onReset, onOpenAdvice, telegramUser, onTogglePrivacy, isPrivacyMode, onShowToast }) => {
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [showAchievements, setShowAchievements] = useState(false);
   const [selectedAchievement, setSelectedAchievement] = useState<Achievement | null>(null);
@@ -43,6 +44,13 @@ const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, 
       saveAccentColor(color);
   };
 
+  const copyLink = (link: string, message: string) => {
+      navigator.clipboard.writeText(link).then(() => {
+          if (onShowToast) onShowToast(message, 'success');
+          else alert(message); // Fallback
+      });
+  };
+
   const handleShare = () => {
       const inviteLink = `https://t.me/FinBotMobile?start=ref_${telegramUser?.id || 'guest'}`;
       if (window.Telegram?.WebApp?.openTelegramLink) {
@@ -50,28 +58,19 @@ const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, 
            const url = `https://t.me/share/url?url=${inviteLink}&text=${text}`;
            window.Telegram.WebApp.openTelegramLink(url);
       } else {
-           if (navigator.share) {
-               navigator.share({
-                   title: 'FinBot Mobile',
-                   text: 'Управляй финансами как профи!',
-                   url: inviteLink
-               }).catch(console.error);
-           } else {
-               navigator.clipboard.writeText(inviteLink);
-               alert("Ссылка скопирована: " + inviteLink);
-           }
+           copyLink(inviteLink, "Ссылка для приглашения скопирована!");
       }
   };
 
   const handleDonate = () => {
-      alert("В MVP демо-версии оплата через Stars эмулируется.");
+      if (onShowToast) onShowToast("В демо-версии оплата эмулируется.", 'success');
+      else alert("В MVP демо-версии оплата через Stars эмулируется.");
   };
 
   const handleInviteToBudget = () => {
       const uniqueId = Math.random().toString(36).substr(2, 9);
       const link = `https://t.me/FinBotMobile?start=join_${uniqueId}`;
-      navigator.clipboard.writeText(link);
-      alert("Ссылка на совместный бюджет скопирована! Отправь её партнеру: " + link);
+      copyLink(link, "Ссылка на бюджет скопирована! Отправь её партнеру.");
   };
 
   const unlockedCount = achievements.filter(a => a.isUnlocked).length;
@@ -126,8 +125,9 @@ const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, 
       </div>
       
       {/* Achievements Banner */}
-      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-[2rem] p-5 text-white shadow-lg relative overflow-hidden cursor-pointer" onClick={() => setShowAchievements(!showAchievements)}>
-          <div className="flex items-center justify-between relative z-10">
+      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-[2rem] p-5 text-white shadow-lg relative overflow-hidden">
+          {/* Header Area Clickable for Expand/Collapse */}
+          <div className="flex items-center justify-between relative z-10 cursor-pointer" onClick={() => setShowAchievements(!showAchievements)}>
               <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
                       <Icon name="trophy" size={24} />
@@ -139,14 +139,19 @@ const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, 
               </div>
               <Icon name={showAchievements ? "chevron-up" : "chevron-down"} />
           </div>
+          
           <div className="mt-4 h-1.5 bg-black/20 rounded-full overflow-hidden">
               <div className="h-full bg-white/90 transition-all duration-1000" style={{width: `${achievementProgress}%`}}></div>
           </div>
           
           {showAchievements && (
-              <div className="mt-4 grid grid-cols-4 gap-2 animate-in slide-in-from-top-2" onClick={(e) => e.stopPropagation()}>
+              <div className="mt-4 grid grid-cols-4 gap-2 animate-in slide-in-from-top-2">
                   {achievements.map(ach => (
-                      <div key={ach.id} onClick={() => setSelectedAchievement(ach)} className={`aspect-square rounded-xl flex items-center justify-center text-2xl transition-transform active:scale-95 ${ach.isUnlocked ? 'bg-white/20 text-white cursor-pointer' : 'bg-black/20 text-white/30 grayscale'}`}>
+                      <div 
+                        key={ach.id} 
+                        onClick={(e) => { e.stopPropagation(); setSelectedAchievement(ach); }} 
+                        className={`aspect-square rounded-xl flex items-center justify-center text-2xl transition-transform active:scale-95 cursor-pointer ${ach.isUnlocked ? 'bg-white/20 text-white' : 'bg-black/20 text-white/30 grayscale'}`}
+                      >
                           <Icon name={ach.icon} size={20} />
                       </div>
                   ))}
