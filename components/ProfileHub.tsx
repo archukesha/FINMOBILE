@@ -47,17 +47,27 @@ const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, 
   const copyLink = (link: string, message: string) => {
       navigator.clipboard.writeText(link).then(() => {
           if (onShowToast) onShowToast(message, 'success');
-          else alert(message); // Fallback
+          else alert(message);
+      }).catch(() => {
+          if (onShowToast) onShowToast("Не удалось скопировать ссылку", 'error');
       });
   };
 
   const handleShare = () => {
       const inviteLink = `https://t.me/FinBotMobile?start=ref_${telegramUser?.id || 'guest'}`;
+      
+      // Try to open Telegram share link first
+      const text = encodeURIComponent("Управляй финансами как профи!");
+      const url = `https://t.me/share/url?url=${inviteLink}&text=${text}`;
+      
+      // Check if we are in Telegram WebApp
       if (window.Telegram?.WebApp?.openTelegramLink) {
-           const text = encodeURIComponent("Управляй финансами как профи!");
-           const url = `https://t.me/share/url?url=${inviteLink}&text=${text}`;
            window.Telegram.WebApp.openTelegramLink(url);
+           // Fallback feedback just in case user cancels or it fails silently
+           // setTimeout(() => copyLink(inviteLink, "Ссылка скопирована в буфер"), 1000); 
       } else {
+           // Fallback for browser
+           window.open(url, '_blank');
            copyLink(inviteLink, "Ссылка для приглашения скопирована!");
       }
   };
@@ -149,7 +159,11 @@ const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, 
                   {achievements.map(ach => (
                       <div 
                         key={ach.id} 
-                        onClick={(e) => { e.stopPropagation(); setSelectedAchievement(ach); }} 
+                        onClick={(e) => { 
+                            e.preventDefault();
+                            e.stopPropagation(); 
+                            setSelectedAchievement(ach); 
+                        }} 
                         className={`aspect-square rounded-xl flex items-center justify-center text-2xl transition-transform active:scale-95 cursor-pointer ${ach.isUnlocked ? 'bg-white/20 text-white' : 'bg-black/20 text-white/30 grayscale'}`}
                       >
                           <Icon name={ach.icon} size={20} />

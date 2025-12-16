@@ -85,20 +85,21 @@ const ReminderEditModal: React.FC<ReminderEditModalProps> = ({ isOpen, onClose, 
 
         <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-4">
+                <label className="block text-xs font-bold text-slate-400 uppercase pl-2">Название</label>
                 <input 
                     className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none outline-none text-lg font-bold text-slate-800 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 transition-all"
-                    value={title} onChange={e => setTitle(e.target.value)} required placeholder="Название напоминания" autoFocus
+                    value={title} onChange={e => setTitle(e.target.value)} required placeholder="Например: Оплата ЖКХ" autoFocus
                 />
+                <label className="block text-xs font-bold text-slate-400 uppercase pl-2">Заметка (опционально)</label>
                 <textarea 
                     className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none outline-none text-sm font-medium text-slate-800 dark:text-white placeholder-slate-400 resize-none h-24 focus:ring-2 focus:ring-blue-500 transition-all"
-                    value={message} onChange={e => setMessage(e.target.value)} placeholder="Добавить описание..."
+                    value={message} onChange={e => setMessage(e.target.value)} placeholder="Подробности..."
                 />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
                 <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-2xl relative">
                     <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1 pl-1">Дата</label>
-                    {/* HTML5 date input format depends on browser locale, usually localized on mobile */}
                     <input type="date" className="w-full bg-transparent font-bold text-slate-700 dark:text-white outline-none" value={date} onChange={e => setDate(e.target.value)} required />
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-2xl">

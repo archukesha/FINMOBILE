@@ -50,7 +50,7 @@ const Education: React.FC<EducationProps> = ({ onBack, subscriptionLevel, onGoTo
         <h2 className="text-2xl font-black text-slate-900 dark:text-white">База знаний</h2>
       </div>
 
-      <div className="relative mb-8">
+      <div className="relative mb-8 z-20">
           <Icon name="search" className="absolute left-4 top-4 text-slate-400" size={20} />
           <input 
             placeholder="Поиск статей..." 
@@ -62,7 +62,7 @@ const Education: React.FC<EducationProps> = ({ onBack, subscriptionLevel, onGoTo
 
       {/* Featured Card */}
       {!search && selectedCategory === 'ALL' && (
-          <div onClick={() => setReadingArticle(featured)} className="mb-8 relative rounded-[2.5rem] overflow-hidden aspect-[4/3] group cursor-pointer shadow-xl active:scale-[0.98] transition-all">
+          <div onClick={() => setReadingArticle(featured)} className="mb-8 relative rounded-[2.5rem] overflow-hidden aspect-[4/3] group cursor-pointer shadow-xl active:scale-[0.98] transition-all z-10">
               <div className={`absolute inset-0 ${featured.color} opacity-90`}></div>
               <Icon name={featured.icon} size={150} className="absolute -right-10 -bottom-10 text-white opacity-20 rotate-12 group-hover:scale-110 transition-transform duration-700" />
               <div className="absolute inset-0 p-8 flex flex-col justify-end text-white">
@@ -74,7 +74,7 @@ const Education: React.FC<EducationProps> = ({ onBack, subscriptionLevel, onGoTo
       )}
 
       {/* Chips */}
-      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-6 pb-2">
+      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-6 pb-2 z-20 relative">
           {['ALL', 'BASICS', 'INVESTING', 'BUDGET'].map(c => (
               <button 
                 key={c}
@@ -86,9 +86,13 @@ const Education: React.FC<EducationProps> = ({ onBack, subscriptionLevel, onGoTo
           ))}
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4 relative z-10">
           {filtered.map(article => (
-              <div key={article.id} onClick={() => setReadingArticle(article)} className="bg-white dark:bg-slate-800 p-4 rounded-[2rem] flex items-center gap-4 shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer active:scale-[0.98] transition-transform hover:shadow-md">
+              <div 
+                key={article.id} 
+                onClick={() => setReadingArticle(article)} 
+                className="bg-white dark:bg-slate-800 p-4 rounded-[2rem] flex items-center gap-4 shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer active:scale-[0.98] transition-transform hover:shadow-md"
+              >
                   <div className={`w-16 h-16 rounded-2xl ${article.color} flex items-center justify-center text-white text-2xl shadow-md shrink-0`}>
                       <Icon name={article.icon} size={28} />
                   </div>

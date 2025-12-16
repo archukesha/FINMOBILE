@@ -121,7 +121,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      // Strict masking: allow only numbers and math symbols
+      // Strict masking: allow only numbers and math symbols. Remove letters immediately.
       const val = e.target.value.replace(/[^0-9.,+\-*/() ]/g, '');
       setAmountInput(val);
   };
@@ -572,10 +572,10 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6 flex-1 flex flex-col">
+      <form onSubmit={handleSubmit} className="space-y-6 flex-1 flex flex-col min-h-0">
         
         {/* Amount with Currency & Calculator */}
-        <div className="text-center">
+        <div className="text-center shrink-0">
           <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
             {type === TransactionType.INCOME && isPrepayment ? 'Предоплата (сейчас)' : 'Сумма'}
           </label>
@@ -609,7 +609,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         </div>
 
         {/* Date & Note (Moved Up) */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 shrink-0">
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Дата</label>
             <input
@@ -647,8 +647,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                </button>
             </div>
             
-            {/* Limit height for grid to prevent pushing save button off */}
-            <div className="grid grid-cols-4 gap-3 overflow-y-auto no-scrollbar h-48 pb-2 content-start">
+            {/* Expanded height for grid, using flex-1 to take available space but allowing scroll */}
+            <div className="grid grid-cols-4 gap-3 overflow-y-auto no-scrollbar pb-2 content-start flex-1" style={{ minHeight: '150px' }}>
               {filteredCategories.map((cat, index) => (
                 <div
                     key={cat.id}
@@ -690,7 +690,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
         {/* Goal Selector for Savings */}
         {type === TransactionType.SAVING_DEPOSIT && (
-          <div>
+          <div className="flex-1">
             <div className="flex justify-between items-center mb-2">
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Цель (Опционально)</label>
                 {goalId && (
@@ -717,7 +717,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
         {/* Freelance Prepayment Option */}
         {!isEditMode && type === TransactionType.INCOME && (
-             <div className="space-y-4">
+             <div className="space-y-4 shrink-0">
                  <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/30 flex items-center justify-between">
                     <div>
                       <span className="block text-sm font-bold text-indigo-900 dark:text-indigo-200">Работа по предоплате?</span>
@@ -778,7 +778,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         )}
 
         {/* Buttons */}
-        <div className="flex flex-col gap-3 mt-4 pb-4">
+        <div className="flex flex-col gap-3 mt-4 pb-4 shrink-0">
           <button
             type="submit"
             className="w-full py-4 bg-primary text-white font-bold rounded-2xl shadow-xl shadow-primary/30 hover:opacity-90 transition-transform active:scale-[0.98] flex justify-center items-center gap-2"
