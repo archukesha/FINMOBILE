@@ -120,6 +120,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       return parseFloat(amountInput);
   };
 
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value.replace(/[^0-9.,+\-*/() ]/g, '');
+      setAmountInput(val);
+  };
+
   const handleBlurAmount = () => {
       calculateAmount();
   };
@@ -223,7 +228,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         amount: normalizedAmount,
         originalAmount: finalVal,
         currency: currency,
-        categoryId: categoryId || filteredCategories[0]?.id,
         date,
         note
     };
@@ -234,6 +238,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         ...initialData,
         ...txBase,
         type,
+        categoryId: categoryId || initialData.categoryId, // Preserve if not changed
         goalId: type === TransactionType.SAVING_DEPOSIT ? goalId : undefined
       });
       if (type === TransactionType.SAVING_DEPOSIT && goalId) {
@@ -248,6 +253,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         saveTransaction({
             id: crypto.randomUUID(),
             type: TransactionType.INCOME,
+            categoryId: categoryId || filteredCategories[0]?.id,
             ...txBase,
             note: note ? `${note} (Предоплата)` : 'Предоплата по проекту'
         });
@@ -275,6 +281,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       saveTransaction({
         id: crypto.randomUUID(),
         type: TransactionType.INCOME,
+        categoryId: categoryId || filteredCategories[0]?.id,
         ...txBase
       });
 
@@ -302,6 +309,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       saveTransaction({
         id: crypto.randomUUID(),
         type: type,
+        categoryId: categoryId || filteredCategories[0]?.id,
         ...txBase
       });
     }
@@ -577,7 +585,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 type="text"
                 inputMode="decimal" 
                 value={amountInput}
-                onChange={(e) => setAmountInput(e.target.value)}
+                onChange={handleAmountChange}
                 onBlur={handleBlurAmount}
                 className="w-full text-center py-2 bg-transparent border-b-2 border-slate-200 dark:border-slate-700 focus:border-primary focus:outline-none text-4xl font-bold text-slate-800 dark:text-white placeholder-slate-200 dark:placeholder-slate-700"
                 placeholder="0"
@@ -599,6 +607,31 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           <div className="text-[10px] text-slate-400 mt-1">Можно писать примеры: 150+50</div>
         </div>
 
+        {/* Date & Note (Moved Up) */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Дата</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary outline-none"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Комментарий</label>
+            <input
+              type="text"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              onBlur={handleNoteBlur}
+              placeholder="Такси, Обед..."
+              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary outline-none placeholder-slate-400"
+            />
+          </div>
+        </div>
+
         {/* Category Grid */}
         {type !== TransactionType.SAVING_DEPOSIT && (
           <div>
@@ -613,7 +646,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                </button>
             </div>
             
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-4 gap-3 max-h-60 overflow-y-auto no-scrollbar pb-4">
               {filteredCategories.map((cat, index) => (
                 <div
                     key={cat.id}
@@ -741,31 +774,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                  )}
              </div>
         )}
-
-        {/* Date & Note */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Дата</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary outline-none"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Комментарий</label>
-            <input
-              type="text"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              onBlur={handleNoteBlur}
-              placeholder="Такси, Обед..."
-              className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary outline-none placeholder-slate-400"
-            />
-          </div>
-        </div>
 
         {/* Buttons */}
         <div className="flex flex-col gap-3 mt-8 pb-4">

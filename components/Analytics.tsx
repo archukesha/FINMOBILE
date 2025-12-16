@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, Tooltip, BarChart, Bar, CartesianGrid } from 'recharts';
 import { Category, TransactionType, SubscriptionLevel } from '../types';
@@ -10,11 +11,12 @@ interface AnalyticsProps {
   subscriptionLevel: SubscriptionLevel;
   onGoToSettings: () => void;
   currentDate: Date;
+  onBack: () => void;
 }
 
 type ChartMode = 'CATEGORY' | 'TREND' | 'WEEKDAY';
 
-const Analytics: React.FC<AnalyticsProps> = ({ categories, subscriptionLevel, onGoToSettings, currentDate: propDate }) => {
+const Analytics: React.FC<AnalyticsProps> = ({ categories, subscriptionLevel, onGoToSettings, currentDate: propDate, onBack }) => {
   const [selectedDate, setSelectedDate] = useState(propDate);
   const [analysisType, setAnalysisType] = useState<'EXPENSE' | 'INCOME'>('EXPENSE');
   const [chartMode, setChartMode] = useState<ChartMode>('CATEGORY');
@@ -102,7 +104,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ categories, subscriptionLevel, on
   }, [selectedCategoryId, txs]);
 
   const hasAccess = subscriptionLevel !== 'FREE' && subscriptionLevel !== 'PLUS'; // Pro+
-  if (!hasAccess) return <PremiumBlock onGoToSettings={onGoToSettings} title="Аналитика Pro" />;
+  if (!hasAccess) return <PremiumBlock onGoToSettings={onGoToSettings} title="Аналитика Pro" onBack={onBack} />;
 
   const monthName = selectedDate.toLocaleString('ru-RU', { month: 'long', year: 'numeric' });
   const activeColor = analysisType === 'EXPENSE' ? '#f43f5e' : '#10b981'; // Rose or Emerald

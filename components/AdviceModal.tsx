@@ -1,3 +1,4 @@
+
 import React from 'react';
 import Advice from './Advice';
 import Icon from './Icon';
@@ -39,6 +40,7 @@ const AdviceModal: React.FC<AdviceModalProps> = ({ isOpen, onClose, subscription
                     onClose();
                     onGoToSettings();
                 }} 
+                onBack={onClose}
             />
         </div>
       </div>

@@ -11,9 +11,10 @@ interface GoalsProps {
   refreshTrigger: number;
   subscriptionLevel: SubscriptionLevel;
   onGoToSettings: () => void;
+  onBack: () => void;
 }
 
-const Goals: React.FC<GoalsProps> = ({ refreshTrigger, subscriptionLevel, onGoToSettings }) => {
+const Goals: React.FC<GoalsProps> = ({ refreshTrigger, subscriptionLevel, onGoToSettings, onBack }) => {
   const [goals, setGoals] = useState<Goal[]>(getGoals());
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: '', target: '', icon: 'target' });
@@ -23,7 +24,7 @@ const Goals: React.FC<GoalsProps> = ({ refreshTrigger, subscriptionLevel, onGoTo
   React.useEffect(() => { setGoals(getGoals()); }, [refreshTrigger]);
 
   const hasAccess = subscriptionLevel !== 'FREE'; // Available from PLUS
-  if (!hasAccess) return <PremiumBlock onGoToSettings={onGoToSettings} title="Финансовые цели" />;
+  if (!hasAccess) return <PremiumBlock onGoToSettings={onGoToSettings} title="Финансовые цели" onBack={onBack} />;
 
   const handleAdd = (e: React.FormEvent) => {
       e.preventDefault();

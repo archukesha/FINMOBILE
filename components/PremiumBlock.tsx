@@ -5,9 +5,10 @@ import Icon from './Icon';
 interface PremiumBlockProps {
   onGoToSettings: () => void;
   title: string;
+  onBack?: () => void;
 }
 
-const PremiumBlock: React.FC<PremiumBlockProps> = ({ onGoToSettings, title }) => {
+const PremiumBlock: React.FC<PremiumBlockProps> = ({ onGoToSettings, title, onBack }) => {
   return (
     <div className="flex flex-col items-center justify-center h-full p-6 animate-page-enter">
       
@@ -37,7 +38,7 @@ const PremiumBlock: React.FC<PremiumBlockProps> = ({ onGoToSettings, title }) =>
             <Icon name="arrow-right" size={18} className="group-hover:translate-x-1 transition-transform" />
         </button>
         <button 
-            onClick={() => window.history.back()} // Fallback if no onBack provided, usually context handles nav
+            onClick={onBack || (() => window.history.back())}
             className="w-full py-3 text-slate-400 font-bold text-sm hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
         >
             Назад

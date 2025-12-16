@@ -18,6 +18,7 @@ interface ProfileHubProps {
 const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, onReset, onOpenAdvice, telegramUser, onTogglePrivacy, isPrivacyMode }) => {
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [showAchievements, setShowAchievements] = useState(false);
+  const [selectedAchievement, setSelectedAchievement] = useState<Achievement | null>(null);
   const [theme, setTheme] = useState<Theme>('LIGHT');
   const [accent, setAccent] = useState<AccentColor>('INDIGO');
   const [showFeedback, setShowFeedback] = useState(false);
@@ -43,11 +44,22 @@ const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, 
   };
 
   const handleShare = () => {
-      const inviteLink = `https://t.me/share/url?url=https://t.me/FinBotMobile?start=ref_${telegramUser?.id || 'guest'}&text=Управляй финансами как профи!`;
+      const inviteLink = `https://t.me/FinBotMobile?start=ref_${telegramUser?.id || 'guest'}`;
       if (window.Telegram?.WebApp?.openTelegramLink) {
-          window.Telegram.WebApp.openTelegramLink(inviteLink);
+           const text = encodeURIComponent("Управляй финансами как профи!");
+           const url = `https://t.me/share/url?url=${inviteLink}&text=${text}`;
+           window.Telegram.WebApp.openTelegramLink(url);
       } else {
-          window.open(inviteLink);
+           if (navigator.share) {
+               navigator.share({
+                   title: 'FinBot Mobile',
+                   text: 'Управляй финансами как профи!',
+                   url: inviteLink
+               }).catch(console.error);
+           } else {
+               navigator.clipboard.writeText(inviteLink);
+               alert("Ссылка скопирована: " + inviteLink);
+           }
       }
   };
 
@@ -59,7 +71,7 @@ const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, 
       const uniqueId = Math.random().toString(36).substr(2, 9);
       const link = `https://t.me/FinBotMobile?start=join_${uniqueId}`;
       navigator.clipboard.writeText(link);
-      alert("Ссылка на совместный бюджет скопирована! Отправь её партнеру.");
+      alert("Ссылка на совместный бюджет скопирована! Отправь её партнеру: " + link);
   };
 
   const unlockedCount = achievements.filter(a => a.isUnlocked).length;
@@ -114,7 +126,7 @@ const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, 
       </div>
       
       {/* Achievements Banner */}
-      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-[2rem] p-5 text-white shadow-lg relative overflow-hidden" onClick={() => setShowAchievements(!showAchievements)}>
+      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-[2rem] p-5 text-white shadow-lg relative overflow-hidden cursor-pointer" onClick={() => setShowAchievements(!showAchievements)}>
           <div className="flex items-center justify-between relative z-10">
               <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
@@ -132,9 +144,9 @@ const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, 
           </div>
           
           {showAchievements && (
-              <div className="mt-4 grid grid-cols-4 gap-2 animate-in slide-in-from-top-2">
+              <div className="mt-4 grid grid-cols-4 gap-2 animate-in slide-in-from-top-2" onClick={(e) => e.stopPropagation()}>
                   {achievements.map(ach => (
-                      <div key={ach.id} className={`aspect-square rounded-xl flex items-center justify-center text-2xl ${ach.isUnlocked ? 'bg-white/20 text-white' : 'bg-black/20 text-white/30 grayscale'}`}>
+                      <div key={ach.id} onClick={() => setSelectedAchievement(ach)} className={`aspect-square rounded-xl flex items-center justify-center text-2xl transition-transform active:scale-95 ${ach.isUnlocked ? 'bg-white/20 text-white cursor-pointer' : 'bg-black/20 text-white/30 grayscale'}`}>
                           <Icon name={ach.icon} size={20} />
                       </div>
                   ))}
@@ -265,6 +277,29 @@ const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, 
             <span>Сбросить данные</span>
          </button>
       </div>
+
+       {/* Achievement Detail Modal */}
+       {selectedAchievement && (
+           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setSelectedAchievement(null)}>
+               <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-[2rem] p-8 text-center shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                   <div className="w-20 h-20 mx-auto bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-3xl flex items-center justify-center text-white text-4xl shadow-lg mb-4">
+                       <Icon name={selectedAchievement.icon} size={40} />
+                   </div>
+                   <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">{selectedAchievement.title}</h3>
+                   <p className="text-slate-500 dark:text-slate-400 font-medium mb-6">{selectedAchievement.description}</p>
+                   {selectedAchievement.isUnlocked ? (
+                       <div className="inline-block bg-emerald-100 text-emerald-600 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                           Открыто {new Date(selectedAchievement.unlockedAt!).toLocaleDateString()}
+                       </div>
+                   ) : (
+                        <div className="inline-block bg-slate-100 dark:bg-slate-800 text-slate-400 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                           Заблокировано
+                       </div>
+                   )}
+                   <button onClick={() => setSelectedAchievement(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><Icon name="x" /></button>
+               </div>
+           </div>
+       )}
     </div>
   );
 };

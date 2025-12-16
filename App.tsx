@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
@@ -209,10 +210,18 @@ const App: React.FC = () => {
             subscriptionLevel={subLevel} 
             onGoToSettings={handleGoToSettings}
             currentDate={currentDate} 
+            onBack={() => handleNavigate('DASHBOARD')}
           />
         );
       case 'GOALS':
-        return <Goals refreshTrigger={refreshTrigger} subscriptionLevel={subLevel} onGoToSettings={handleGoToSettings} />;
+        return (
+          <Goals 
+            refreshTrigger={refreshTrigger} 
+            subscriptionLevel={subLevel} 
+            onGoToSettings={handleGoToSettings} 
+            onBack={() => handleNavigate('DASHBOARD')}
+          />
+        );
       
       case 'HUB':
         return (

@@ -74,13 +74,14 @@ export const api = {
     auth: {
         login: async (_initData: string): Promise<AuthResponse> => {
             await delay(500); 
+            // DEFAULT TO MAX FOR DEMO/QA PURPOSES
             return {
                 token: 'mock_jwt',
                 user: {
                     id: 'user_001',
                     telegramId: 12345678,
                     firstName: 'User',
-                    subscriptionLevel: (localStorage.getItem('finbot_sub_level') as SubscriptionLevel) || 'FREE',
+                    subscriptionLevel: (localStorage.getItem('finbot_sub_level') as SubscriptionLevel) || 'MAX',
                     subscriptionExpiresAt: null,
                     currency: 'RUB',
                     privacyMode: false
@@ -93,7 +94,7 @@ export const api = {
                 id: 'user_001',
                 telegramId: 12345678,
                 firstName: 'User',
-                subscriptionLevel: (localStorage.getItem('finbot_sub_level') as SubscriptionLevel) || 'FREE',
+                subscriptionLevel: (localStorage.getItem('finbot_sub_level') as SubscriptionLevel) || 'MAX',
                 subscriptionExpiresAt: null,
                 currency: 'RUB',
                 privacyMode: false

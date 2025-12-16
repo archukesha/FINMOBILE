@@ -9,6 +9,7 @@ import Icon from './Icon';
 interface AdviceProps {
   subscriptionLevel: SubscriptionLevel;
   onGoToSettings: () => void;
+  onBack: () => void;
 }
 
 interface Message {
@@ -18,7 +19,7 @@ interface Message {
     date: Date;
 }
 
-const Advice: React.FC<AdviceProps> = ({ subscriptionLevel, onGoToSettings }) => {
+const Advice: React.FC<AdviceProps> = ({ subscriptionLevel, onGoToSettings, onBack }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
@@ -34,7 +35,7 @@ const Advice: React.FC<AdviceProps> = ({ subscriptionLevel, onGoToSettings }) =>
   }, [messages, loading]);
 
   if (subscriptionLevel !== 'MAX') {
-    return <PremiumBlock onGoToSettings={onGoToSettings} title="AI Финансист" />;
+    return <PremiumBlock onGoToSettings={onGoToSettings} title="AI Финансист" onBack={onBack} />;
   }
 
   const handleAsk = async () => {
