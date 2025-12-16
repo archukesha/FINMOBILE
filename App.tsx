@@ -1,11 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import TransactionForm from './components/TransactionForm';
 import Analytics from './components/Analytics';
 import Goals from './components/Goals';
-import Advice from './components/Advice';
 import AdviceModal from './components/AdviceModal';
 import ProfileHub from './components/ProfileHub';
 import Subscriptions from './components/Subscriptions';
@@ -25,7 +23,6 @@ const App: React.FC = () => {
   const [categories, setCategories] = useState(getCategories());
   const [refreshTrigger, setRefreshTrigger] = useState(0); 
   const [subLevel, setSubLevel] = useState<SubscriptionLevel>('FREE');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   
   // New Global States
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -98,7 +95,6 @@ const App: React.FC = () => {
         } else {
             // Browser Dev Mode
             saveTheme(getTheme());
-            setIsAuthenticated(true); // Mock auth for browser
         }
     };
 

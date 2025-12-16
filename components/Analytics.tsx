@@ -1,6 +1,5 @@
-
 import React, { useMemo, useState } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, BarChart, Bar, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, Tooltip, BarChart, Bar, CartesianGrid } from 'recharts';
 import { Category, TransactionType, SubscriptionLevel } from '../types';
 import { getTransactionsByMonth } from '../services/storage';
 import PremiumBlock from './PremiumBlock';
@@ -200,7 +199,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ categories, subscriptionLevel, on
                                 contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}}
                                 labelStyle={{color: '#64748b', fontSize: '10px', fontWeight: 'bold'}}
                                 itemStyle={{color: activeColor, fontWeight: 'bold'}}
-                                formatter={(value: number) => [`${value} ₽`]}
+                                formatter={(value: any) => [`${value} ₽`]}
                                 labelFormatter={(label) => `${label} ${monthName}`}
                              />
                              <Area 
@@ -230,7 +229,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ categories, subscriptionLevel, on
                                 cursor={{fill: 'rgba(0,0,0,0.05)'}}
                                 contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}}
                                 itemStyle={{color: activeColor, fontWeight: 'bold'}}
-                                formatter={(value: number) => [`${value} ₽`]}
+                                formatter={(value: any) => [`${value} ₽`]}
                              />
                              <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                                 {weekdayData.map((entry, index) => (

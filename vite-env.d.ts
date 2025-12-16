@@ -1,8 +1,11 @@
-// Reference to vite/client removed due to missing type definition error
+// Fix: Use namespace augmentation for process.env to avoid "redeclare block-scoped variable" error.
+export {};
 
-declare const process: {
-  env: {
-    [key: string]: string | undefined;
-    API_KEY?: string;
+declare global {
+  namespace NodeJS {
+    interface ProcessEnv {
+      API_KEY?: string;
+      [key: string]: string | undefined;
+    }
   }
-};
+}

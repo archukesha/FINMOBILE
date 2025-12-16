@@ -1,6 +1,5 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
-import { Transaction, Category, TransactionType, Achievement, Debt, SmartInsight } from '../types';
+import { Transaction, Category, TransactionType, Achievement, Debt, SmartInsight, ViewState } from '../types';
 import { getTransactionsByMonth, getAchievements, getDebts, deleteTransaction, getTransactions } from '../services/storage';
 import { api } from '../services/api';
 import { haptic } from '../services/telegram';
@@ -14,7 +13,7 @@ interface DashboardProps {
   onDateChange: (newDate: Date) => void;
   onEditTransaction: (tx: Transaction) => void;
   onOpenExpectedIncome?: () => void;
-  onNavigate: (view: string) => void;
+  onNavigate: (view: ViewState) => void;
   isPrivacyMode: boolean; // New Prop
 }
 
@@ -31,26 +30,19 @@ const TransactionSkeleton = () => (
     </div>
 );
 
-const Dashboard: React.FC<DashboardProps> = ({ categories, refreshTrigger, currentDate, onDateChange, onEditTransaction, onOpenExpectedIncome, onNavigate, isPrivacyMode }) => {
-  const [achievements, setAchievements] = useState<Achievement[]>([]);
-  const [debts, setDebts] = useState<Debt[]>([]);
+const Dashboard: React.FC<DashboardProps> = ({ categories, refreshTrigger, currentDate, onDateChange, onEditTransaction, onNavigate, isPrivacyMode }) => {
   const [loading, setLoading] = useState(true);
-  const [smartInsight, setSmartInsight] = useState<SmartInsight | null>(null);
   
   // Filters & Search
-  const [filterType, setFilterType] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL');
-  const [filterMinAmount, setFilterMinAmount] = useState<number | null>(null);
+  const [filterType] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL');
+  const [filterMinAmount] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     setLoading(true);
-    setAchievements(getAchievements());
-    setDebts(getDebts());
     
-    // Load Smart Insight
-    api.ai.getSmartInsights(getTransactions()).then(insights => {
-        if (insights.length > 0) setSmartInsight(insights[0]);
-    });
+    // Load Smart Insight (fire and forget)
+    api.ai.getSmartInsights(getTransactions());
 
     setTimeout(() => setLoading(false), 500);
   }, [refreshTrigger, currentDate]);

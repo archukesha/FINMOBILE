@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Schema, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { 
     AuthResponse, PaymentInitiateResponse, PaymentStatusResponse, AiAdviceRequest, 
     SubscriptionLevel, UserProfile, Subscription, 
@@ -12,13 +12,11 @@ import { getSubscriptions as getLocalSubs, saveSubscription as saveLocalSub, del
  * API SERVICE
  */
 
-const API_BASE_URL = 'https://api.your-backend.com/v1'; 
-
 // Initialize Gemini AI
 const getApiKey = () => {
     try {
         if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-            return process.env.API_KEY;
+            return process.env.API_KEY || '';
         }
     } catch (e) {
         // Ignore error
@@ -74,7 +72,7 @@ const saveReminderSettingsToStorage = (settings: ReminderSettings) => {
 
 export const api = {
     auth: {
-        login: async (initData: string): Promise<AuthResponse> => {
+        login: async (_initData: string): Promise<AuthResponse> => {
             await delay(500); 
             return {
                 token: 'mock_jwt',
@@ -105,7 +103,7 @@ export const api = {
 
     // ... Payment (Same as before) ...
     payment: {
-        createPayment: async (plan: string): Promise<PaymentInitiateResponse> => {
+        createPayment: async (_plan: string): Promise<PaymentInitiateResponse> => {
             await delay(1000);
             return {
                 paymentId: `pay_${Date.now()}`,
@@ -113,7 +111,7 @@ export const api = {
                 confirmationUrl: 'https://yoomoney.ru' 
             };
         },
-        checkStatus: async (providerPaymentId: string): Promise<PaymentStatusResponse> => {
+        checkStatus: async (_providerPaymentId: string): Promise<PaymentStatusResponse> => {
             await delay(500);
             return { status: 'SUCCEEDED' };
         }
@@ -159,7 +157,7 @@ export const api = {
             const newItems = items.filter(r => r.id !== id);
             saveRemindersToStorage(newItems);
         },
-        run: async (id: string): Promise<{ status: string }> => { await delay(500); return { status: 'OK' }; },
+        run: async (_id: string): Promise<{ status: string }> => { await delay(500); return { status: 'OK' }; },
         getHistory: async (): Promise<ReminderHistoryItem[]> => { 
             await delay(300); 
             return getReminderHistoryFromStorage(); 
@@ -220,12 +218,10 @@ export const api = {
                             { text: "Analyze this receipt. Return JSON with 'total' (number), 'date' (YYYY-MM-DD), 'vendor' (string used for note), 'category' (guess one of: exp_food, exp_transport, exp_shopping, exp_health, exp_cafe). If unsure category, use exp_other." }
                         ]
                     },
-                    config: {
-                         responseMimeType: "application/json",
-                    }
+                    // Removed responseMimeType as it is not supported for nano banana models
                 });
 
-                const json = JSON.parse(response.text);
+                const json = JSON.parse(response.text || '{}');
                 return {
                     amount: json.total || 0,
                     date: json.date || new Date().toISOString().split('T')[0],
@@ -256,7 +252,7 @@ export const api = {
                     contents: prompt,
                     config: { responseMimeType: "application/json" }
                 });
-                return JSON.parse(response.text);
+                return JSON.parse(response.text || '{}');
             } catch (e) {
                 return { amount: 0, confidence: 0 };
             }
@@ -271,7 +267,7 @@ export const api = {
                     model: 'gemini-2.5-flash',
                     contents: prompt,
                 });
-                return response.text.trim().replace(/['"]/g, '');
+                return response.text?.trim().replace(/['"]/g, '') || 'exp_other';
              } catch {
                  return 'exp_other';
              }
@@ -287,7 +283,7 @@ export const api = {
                     contents: prompt,
                     config: { responseMimeType: "application/json" }
                 });
-                return [JSON.parse(response.text)];
+                return [JSON.parse(response.text || '{}')];
             } catch (e) { return []; }
         },
 
@@ -300,7 +296,7 @@ export const api = {
                     contents: prompt,
                     config: { responseMimeType: "application/json" }
                 });
-                return JSON.parse(response.text);
+                return JSON.parse(response.text || '{}');
             } catch (e) {
                 return { title: 'Накопления', amount: 50000, message: 'Стандартная цель' };
             }
