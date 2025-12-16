@@ -1,153 +1,111 @@
 
 import React, { useMemo, useState } from 'react';
 import Icon from './Icon';
-import { getGoals, markArticleRead } from '../services/storage';
 import { ARTICLES } from '../constants';
-import { Article } from '../types';
+import { Article, SubscriptionLevel } from '../types';
 import ArticleReader from './ArticleReader';
+import PremiumBlock from './PremiumBlock';
 
 interface EducationProps {
   onBack: () => void;
+  subscriptionLevel: SubscriptionLevel;
+  onGoToSettings: () => void;
 }
 
-const Education: React.FC<EducationProps> = ({ onBack }) => {
-  const [selectedCategory, setSelectedCategory] = useState<'ALL' | 'BASICS' | 'INVESTING' | 'BUDGET' | 'DEBT'>('ALL');
+const Education: React.FC<EducationProps> = ({ onBack, subscriptionLevel, onGoToSettings }) => {
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [readingArticle, setReadingArticle] = useState<Article | null>(null);
+  const [search, setSearch] = useState('');
 
-  // Logic to show personalized content (Top Banner)
-  const recommendations = useMemo(() => {
-    const goals = getGoals();
-    const hasSafetyNet = goals.some(g => g.name.toLowerCase().includes('подушка') || g.name.toLowerCase().includes('резерв'));
-    
-    // Find specific articles from constant
-    const safetyNetArticle = ARTICLES.find(a => a.id === 'safety_net');
-    const budgetArticle = ARTICLES.find(a => a.id === '50_30_20');
+  // Lock for FREE users (Requires PLUS+)
+  if (subscriptionLevel === 'FREE') {
+      return (
+          <div className="h-full flex flex-col">
+              <div className="p-5 flex items-center gap-4">
+                <button onClick={onBack} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300">
+                    <Icon name="arrow-left" />
+                </button>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white">База знаний</h2>
+              </div>
+              <PremiumBlock onGoToSettings={onGoToSettings} title="База знаний" />
+          </div>
+      );
+  }
 
-    const recs = [];
+  const featured = ARTICLES[0]; 
 
-    if (!hasSafetyNet && safetyNetArticle) {
-      recs.push(safetyNetArticle);
-    } else if (budgetArticle) {
-       recs.push(budgetArticle);
-    }
-    
-    return recs;
-  }, []);
-
-  const filteredArticles = useMemo(() => {
-     if (selectedCategory === 'ALL') return ARTICLES;
-     return ARTICLES.filter(a => a.category === selectedCategory);
-  }, [selectedCategory]);
-
-  const handleRead = (article: Article) => {
-      setReadingArticle(article);
-      markArticleRead(article.id);
-  };
-
-  const categories: {id: string, label: string}[] = [
-      { id: 'ALL', label: 'Все' },
-      { id: 'BASICS', label: 'Основы' },
-      { id: 'BUDGET', label: 'Бюджет' },
-      { id: 'INVESTING', label: 'Инвестиции' },
-      { id: 'DEBT', label: 'Долги' }
-  ];
+  const filtered = ARTICLES.filter(a => {
+      const matchCat = selectedCategory === 'ALL' || a.category === selectedCategory;
+      const matchSearch = a.title.toLowerCase().includes(search.toLowerCase());
+      return matchCat && matchSearch;
+  });
 
   return (
     <>
-    <div className="p-5 space-y-6 animate-page-enter pb-32">
-       <div className="flex items-center gap-4">
-        <button onClick={onBack} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+    <div className="p-5 pb-32 animate-page-enter">
+       <div className="flex items-center gap-4 mb-6">
+        <button onClick={onBack} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300">
           <Icon name="arrow-left" />
         </button>
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">База знаний</h2>
+        <h2 className="text-2xl font-black text-slate-900 dark:text-white">База знаний</h2>
       </div>
 
-      <div className="bg-slate-900 dark:bg-indigo-950 rounded-3xl p-6 text-white relative overflow-hidden shadow-xl shadow-slate-300 dark:shadow-slate-900/50">
-         <div className="absolute right-0 top-0 w-32 h-32 bg-indigo-500 rounded-full blur-3xl opacity-30"></div>
-         <h3 className="font-bold text-lg mb-2 relative z-10">Финансовая грамотность</h3>
-         <p className="text-slate-300 text-sm relative z-10">
-           {ARTICLES.length} простых уроков, которые помогут быстрее достичь ваших целей и избежать долгов.
-         </p>
+      <div className="relative mb-8">
+          <Icon name="search" className="absolute left-4 top-4 text-slate-400" size={20} />
+          <input 
+            placeholder="Поиск статей..." 
+            className="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 outline-none font-medium dark:text-white transition-all focus:ring-2 focus:ring-indigo-500/20"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
       </div>
 
-      {recommendations.length > 0 && (
-        <div>
-          <h3 className="font-bold text-slate-800 dark:text-white text-lg mb-3 flex items-center gap-2">
-            <span>🔥</span> Рекомендуем вам
-          </h3>
-          <div className="grid grid-cols-1 gap-4">
-            {recommendations.map(article => (
-              <div 
-                key={article.id} 
-                onClick={() => handleRead(article)}
-                className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm flex items-start gap-4 hover:shadow-md transition-all cursor-pointer active:scale-[0.98] group"
-              >
-                <div className={`w-14 h-14 rounded-2xl ${article.color} flex items-center justify-center text-white shrink-0 shadow-md group-hover:scale-110 transition-transform`}>
-                  <Icon name={article.icon} size={28} />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-800 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{article.title}</h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">{article.description}</p>
-                  <div className="mt-2 text-[10px] font-bold text-slate-400 uppercase bg-slate-100 dark:bg-slate-700 inline-block px-2 py-0.5 rounded-md">
-                    Читать • {article.readTime} мин
-                  </div>
-                </div>
+      {/* Featured Card */}
+      {!search && selectedCategory === 'ALL' && (
+          <div onClick={() => setReadingArticle(featured)} className="mb-8 relative rounded-[2.5rem] overflow-hidden aspect-[4/3] group cursor-pointer shadow-xl active:scale-[0.98] transition-all">
+              <div className={`absolute inset-0 ${featured.color} opacity-90`}></div>
+              <Icon name={featured.icon} size={150} className="absolute -right-10 -bottom-10 text-white opacity-20 rotate-12 group-hover:scale-110 transition-transform duration-700" />
+              <div className="absolute inset-0 p-8 flex flex-col justify-end text-white">
+                  <span className="bg-white/20 backdrop-blur self-start px-3 py-1 rounded-lg text-xs font-bold uppercase mb-2">Главное</span>
+                  <h3 className="text-3xl font-black leading-tight mb-2">{featured.title}</h3>
+                  <p className="line-clamp-2 opacity-90">{featured.description}</p>
               </div>
-            ))}
           </div>
-        </div>
       )}
 
-      <div>
-        <h3 className="font-bold text-slate-800 dark:text-white text-lg mb-3">Каталог статей</h3>
-        
-        {/* Chips */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-2">
-           {categories.map(cat => (
-             <button
-               key={cat.id}
-               onClick={() => setSelectedCategory(cat.id as any)}
-               className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
-                 selectedCategory === cat.id 
-                   ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 shadow-md' 
-                   : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-               }`}
-             >
-               {cat.label}
-             </button>
-           ))}
-        </div>
+      {/* Chips */}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-6 pb-2">
+          {['ALL', 'BASICS', 'INVESTING', 'BUDGET'].map(c => (
+              <button 
+                key={c}
+                onClick={() => setSelectedCategory(c)}
+                className={`px-5 py-2.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${selectedCategory === c ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-md transform scale-105' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500'}`}
+              >
+                  {c === 'ALL' ? 'Все' : c === 'BASICS' ? 'Основы' : c === 'INVESTING' ? 'Инвестиции' : 'Бюджет'}
+              </button>
+          ))}
+      </div>
 
-        {/* List */}
-        <div className="space-y-3">
-           {filteredArticles.map(article => (
-             <button 
-                key={article.id}
-                onClick={() => handleRead(article)}
-                className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 flex items-center gap-4 text-left hover:border-blue-200 dark:hover:border-blue-700 transition-colors group active:bg-slate-50 dark:active:bg-slate-700"
-             >
-                <div className={`w-10 h-10 rounded-xl ${article.color} bg-opacity-10 flex items-center justify-center text-lg shrink-0`}>
-                  <div className={`${article.color.replace('bg-', 'text-')}`}>
-                     <Icon name={article.icon} size={20} />
+      <div className="space-y-4">
+          {filtered.map(article => (
+              <div key={article.id} onClick={() => setReadingArticle(article)} className="bg-white dark:bg-slate-800 p-4 rounded-[2rem] flex items-center gap-4 shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer active:scale-[0.98] transition-transform hover:shadow-md">
+                  <div className={`w-16 h-16 rounded-2xl ${article.color} flex items-center justify-center text-white text-2xl shadow-md shrink-0`}>
+                      <Icon name={article.icon} size={28} />
                   </div>
-                </div>
-                <div className="flex-1">
-                   <div className="font-bold text-slate-700 dark:text-slate-200 text-sm group-hover:text-blue-600 dark:group-hover:text-blue-400 leading-tight">{article.title}</div>
-                   <div className="text-[10px] text-slate-400 mt-1">{article.readTime} мин чтения</div>
-                </div>
-                <Icon name="chevron-right" size={16} className="text-slate-300 dark:text-slate-600" />
-             </button>
-           ))}
-        </div>
+                  <div>
+                      <h4 className="font-bold text-slate-900 dark:text-white leading-tight mb-1">{article.title}</h4>
+                      <div className="flex items-center gap-2 text-xs text-slate-400 font-bold uppercase">
+                          <span className="flex items-center gap-1"><Icon name="clock" size={10} /> {article.readTime} мин</span>
+                          <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+                          <span>{article.category === 'BASICS' ? 'Основы' : article.category === 'INVESTING' ? 'Инвестиции' : article.category === 'BUDGET' ? 'Бюджет' : 'Долги'}</span>
+                      </div>
+                  </div>
+              </div>
+          ))}
       </div>
     </div>
-
-    {/* Reader Modal */}
-    {readingArticle && (
-       <ArticleReader article={readingArticle} onClose={() => setReadingArticle(null)} />
-    )}
+    {readingArticle && <ArticleReader article={readingArticle} onClose={() => setReadingArticle(null)} />}
     </>
   );
 };
-
 export default Education;

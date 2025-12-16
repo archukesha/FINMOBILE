@@ -1,11 +1,12 @@
 import React from 'react';
 import Advice from './Advice';
 import Icon from './Icon';
+import { SubscriptionLevel } from '../types';
 
 interface AdviceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  subscriptionLevel: 'FREE' | 'PRO' | 'PREMIUM';
+  subscriptionLevel: SubscriptionLevel;
   onGoToSettings: () => void;
 }
 

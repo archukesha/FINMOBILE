@@ -16,7 +16,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'exp_health', name: 'Здоровье', type: 'EXPENSE', color: '#f472b6', icon: 'heart-pulse' },
   { id: 'exp_shopping', name: 'Шопинг', type: 'EXPENSE', color: '#818cf8', icon: 'shopping-bag' },
   { id: 'exp_regular', name: 'Платежи', type: 'EXPENSE', color: '#fbbf24', icon: 'receipt' },
-  { id: 'exp_debt', name: 'Долги', type: 'EXPENSE', color: '#ef4444', icon: 'hand-coins' }, // NEW
+  { id: 'exp_debt', name: 'Кредиты/Долги', type: 'EXPENSE', color: '#ef4444', icon: 'hand-coins' }, 
   { id: 'exp_other', name: 'Прочее', type: 'EXPENSE', color: '#94a3b8', icon: 'box' },
 
   // Savings (Internal)

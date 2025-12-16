@@ -72,7 +72,7 @@ export const saveTheme = (theme: Theme) => {
 export const getSubscriptionLevel = (): SubscriptionLevel => {
   const legacyPremium = localStorage.getItem('finbot_is_premium');
   if (legacyPremium === 'true') {
-    return 'PREMIUM';
+    return 'PRO'; // Map old premium to PRO for now
   }
   const level = localStorage.getItem(KEYS.SUBSCRIPTION_LEVEL);
   return (level as SubscriptionLevel) || 'FREE';
@@ -201,6 +201,15 @@ export const saveDebt = (debt: Debt): void => {
   checkAchievements();
 };
 
+export const updateDebt = (debt: Debt): void => {
+    const list = getDebts();
+    const index = list.findIndex(d => d.id === debt.id);
+    if (index !== -1) {
+        list[index] = debt;
+        localStorage.setItem(KEYS.DEBTS, JSON.stringify(list));
+    }
+};
+
 export const deleteDebt = (id: string): void => {
   const list = getDebts();
   const newList = list.filter(d => d.id !== id);
@@ -300,7 +309,7 @@ export const checkAchievements = () => {
   if (totalIncome >= 1000000) unlock('ach_inc_3');
 
   // Debt Freedom
-  const hasDebts = debts.filter(d => d.amount > 0 && d.type === 'I_OWE').length > 0;
+  const hasDebts = debts.filter(d => d.remainingAmount > 0 && d.type === 'I_OWE').length > 0;
   const everHadDebts = localStorage.getItem('finbot_had_debts') === 'true';
   if (debts.length > 0) localStorage.setItem('finbot_had_debts', 'true');
   if (everHadDebts && !hasDebts) unlock('ach_debt_free');

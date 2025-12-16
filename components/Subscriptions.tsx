@@ -1,33 +1,43 @@
 
 import React, { useState, useEffect } from 'react';
-import { Subscription, TransactionType, UserProfile, SubscriptionLevel } from '../types';
-import { getCategories, saveTransaction, setSubscriptionLevel } from '../services/storage';
+import { Subscription, TransactionType, SubscriptionLevel } from '../types';
+import { getCategories, saveTransaction } from '../services/storage';
 import { api } from '../services/api';
+import PremiumBlock from './PremiumBlock';
 import Icon from './Icon';
 
 interface SubscriptionsProps {
   onBack: () => void;
   onUpdate?: () => void;
+  subscriptionLevel: SubscriptionLevel;
+  onGoToSettings: () => void;
 }
 
-const Subscriptions: React.FC<SubscriptionsProps> = ({ onBack, onUpdate }) => {
-  // App Subscription State
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [loadingUser, setLoadingUser] = useState(true);
-  const [paymentPending, setPaymentPending] = useState(false);
-
-  // External Subscriptions State
+const Subscriptions: React.FC<SubscriptionsProps> = ({ onBack, onUpdate, subscriptionLevel, onGoToSettings }) => {
   const [externalSubs, setExternalSubs] = useState<Subscription[]>([]);
   const [loadingSubs, setLoadingSubs] = useState(true);
   
   // Modals
   const [showAdd, setShowAdd] = useState(false);
-  
-  // Form State
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
   const [period, setPeriod] = useState<'MONTHLY' | 'YEARLY'>('MONTHLY');
+
+  // Lock for FREE and PLUS users (Requires PRO+)
+  if (subscriptionLevel === 'FREE' || subscriptionLevel === 'PLUS') {
+      return (
+          <div className="h-full flex flex-col">
+              <div className="p-5 flex items-center gap-4">
+                <button onClick={onBack} className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 shadow-sm border border-slate-100 dark:border-slate-700 active:scale-95 transition-all">
+                    <Icon name="arrow-left" />
+                </button>
+                <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Мои Подписки</h2>
+              </div>
+              <PremiumBlock onGoToSettings={onGoToSettings} title="SaaS Подписки" />
+          </div>
+      );
+  }
 
   useEffect(() => {
     fetchData();
@@ -35,74 +45,18 @@ const Subscriptions: React.FC<SubscriptionsProps> = ({ onBack, onUpdate }) => {
 
   const fetchData = async () => {
       try {
-          const [user, subs] = await Promise.all([
-              api.auth.getMe(),
-              api.subscriptions.list()
-          ]);
-          setUserProfile(user);
+          const subs = await api.subscriptions.list();
           setExternalSubs(subs);
       } catch (e) {
           console.error(e);
       } finally {
-          setLoadingUser(false);
           setLoadingSubs(false);
       }
   };
 
-  // --- APP SUBSCRIPTION LOGIC ---
-
-  const handleAppPayment = async (plan: 'PRO_MONTHLY' | 'PRO_YEARLY' | 'PREMIUM_MONTHLY' | 'PREMIUM_YEARLY') => {
-      setPaymentPending(true);
-      try {
-          // 1. Initiate
-          const { confirmationUrl, providerPaymentId } = await api.payment.createPayment(plan);
-          
-          // 2. Open Payment Link
-          if (window.Telegram?.WebApp) {
-              window.Telegram.WebApp.openLink(confirmationUrl);
-          } else {
-              window.open(confirmationUrl, '_blank');
-          }
-
-          // 3. Poll for status (Mock simulation)
-          // In reality, we'd wait for the user to return or use a webhook
-          setTimeout(async () => {
-              const res = await api.payment.checkStatus(providerPaymentId);
-              if (res.status === 'SUCCEEDED') {
-                  const newLevel = plan.includes('PREMIUM') ? 'PREMIUM' : 'PRO';
-                  // Simulate backend updating the user
-                  const newExpiry = new Date();
-                  newExpiry.setMonth(newExpiry.getMonth() + (plan.includes('YEARLY') ? 12 : 1));
-                  
-                  // Optimistic Update
-                  localStorage.setItem('finbot_sub_level', newLevel);
-                  localStorage.setItem('finbot_sub_expiry', newExpiry.toISOString());
-                  setSubscriptionLevel(newLevel);
-                  
-                  alert('Оплата прошла успешно! Подписка обновлена.');
-                  fetchData(); // Refresh Profile
-                  if (onUpdate) onUpdate();
-              }
-              setPaymentPending(false);
-          }, 3000);
-
-      } catch (e) {
-          alert('Ошибка платежа');
-          setPaymentPending(false);
-      }
-  };
-
-  // --- EXTERNAL SUBSCRIPTIONS LOGIC ---
-
-  const totalMonthly = externalSubs.reduce((acc, s) => {
-    if (!s.isActive) return acc;
-    return acc + (s.billingPeriod === 'MONTHLY' ? s.amount : s.amount / 12);
-  }, 0);
-
   const handleSaveExternal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !amount || !date) return;
-    
     const categories = getCategories();
     const newSub: Subscription = {
       id: crypto.randomUUID(),
@@ -114,30 +68,21 @@ const Subscriptions: React.FC<SubscriptionsProps> = ({ onBack, onUpdate }) => {
       categoryId: categories.find(c => c.type === 'EXPENSE')?.id || 'exp_other',
       isActive: true
     };
-
-    try {
-        await api.subscriptions.create(newSub);
-        setExternalSubs(await api.subscriptions.list());
-        setShowAdd(false);
-        resetForm();
-    } catch (e) {
-        alert('Не удалось сохранить');
-    }
+    await api.subscriptions.create(newSub);
+    setExternalSubs(await api.subscriptions.list());
+    setShowAdd(false);
+    resetForm();
   };
 
   const handleDeleteExternal = async (id: string) => {
-    if (confirm('Удалить подписку из списка?')) {
+    if (confirm('Удалить подписку?')) {
       await api.subscriptions.delete(id);
       setExternalSubs(await api.subscriptions.list());
     }
   };
 
   const handleLogPayment = async (sub: Subscription) => {
-    // "Buy Month/Year" logic -> Create transaction and shift date
-    const confirmMsg = `Списать ${sub.amount} ₽ и продлить на ${sub.billingPeriod === 'MONTHLY' ? 'месяц' : 'год'}?`;
-    if (!confirm(confirmMsg)) return;
-
-    // 1. Local Transaction
+    if (!confirm(`Списать ${sub.amount} ₽? Это добавит расход в статистику.`)) return;
     saveTransaction({
         id: crypto.randomUUID(),
         amount: sub.amount,
@@ -146,135 +91,74 @@ const Subscriptions: React.FC<SubscriptionsProps> = ({ onBack, onUpdate }) => {
         date: new Date().toISOString().split('T')[0],
         note: `Подписка: ${sub.name}`
     });
-
-    // 2. Update Date via API
     const nextDate = new Date(sub.nextPaymentDate);
     if (sub.billingPeriod === 'MONTHLY') nextDate.setMonth(nextDate.getMonth() + 1);
     else nextDate.setFullYear(nextDate.getFullYear() + 1);
-    
     await api.subscriptions.update(sub.id, { nextPaymentDate: nextDate.toISOString().split('T')[0] });
     setExternalSubs(await api.subscriptions.list());
     if (onUpdate) onUpdate();
+    alert("Платеж записан!");
   };
 
-  const resetForm = () => {
-    setName('');
-    setAmount('');
-    setDate('');
-    setPeriod('MONTHLY');
-  };
-
-  const formatDate = (d: string) => new Date(d).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+  const resetForm = () => { setName(''); setAmount(''); setDate(''); setPeriod('MONTHLY'); };
+  const totalMonthly = externalSubs.reduce((acc, s) => s.isActive ? acc + (s.billingPeriod === 'MONTHLY' ? s.amount : s.amount / 12) : acc, 0);
 
   return (
-    <div className="p-5 space-y-8 h-full flex flex-col animate-page-enter">
-      {/* Header */}
+    <div className="p-5 space-y-8 h-full flex flex-col animate-page-enter pb-32">
       <div className="flex items-center gap-4">
-        <button onClick={onBack} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700">
+        <button onClick={onBack} className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 shadow-sm border border-slate-100 dark:border-slate-700 active:scale-95 transition-all">
           <Icon name="arrow-left" />
         </button>
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Подписки</h2>
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Мои Подписки</h2>
       </div>
 
-      {/* --- APP SUBSCRIPTION CARD --- */}
-      <div className="bg-gradient-to-br from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-900 rounded-[2rem] p-6 text-white shadow-xl relative overflow-hidden">
-         <div className="relative z-10">
-             <div className="flex justify-between items-start mb-4">
-                <div>
-                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Ваш тариф</p>
-                    <h3 className="text-3xl font-black">{userProfile?.subscriptionLevel || '...'}</h3>
-                    {userProfile?.subscriptionExpiresAt && (
-                        <p className="text-xs text-slate-300 mt-2 flex items-center gap-1">
-                            <Icon name="clock" size={12} />
-                            Истекает: {formatDate(userProfile.subscriptionExpiresAt)}
-                        </p>
-                    )}
-                </div>
-                <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-2xl backdrop-blur-md">
-                    <Icon name={userProfile?.subscriptionLevel === 'PREMIUM' ? 'crown' : userProfile?.subscriptionLevel === 'PRO' ? 'zap' : 'user'} />
-                </div>
-             </div>
-
-             {/* Upgrade Options */}
-             <div className="space-y-3 mt-6">
-                {userProfile?.subscriptionLevel === 'FREE' && (
-                    <button 
-                        onClick={() => handleAppPayment('PRO_MONTHLY')}
-                        disabled={paymentPending}
-                        className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-sm transition-colors flex justify-between px-4 items-center"
-                    >
-                        <span>Купить PRO</span>
-                        <span className="bg-blue-800/50 px-2 py-0.5 rounded text-xs">99 ₽ / мес</span>
-                    </button>
-                )}
-                {userProfile?.subscriptionLevel !== 'PREMIUM' && (
-                    <button 
-                        onClick={() => handleAppPayment('PREMIUM_MONTHLY')}
-                        disabled={paymentPending}
-                        className="w-full py-3 bg-gradient-to-r from-amber-400 to-orange-500 hover:to-orange-400 rounded-xl font-bold text-slate-900 text-sm transition-colors flex justify-between px-4 items-center"
-                    >
-                        <span>{userProfile?.subscriptionLevel === 'PRO' ? 'Улучшить до PREMIUM' : 'Купить PREMIUM'}</span>
-                        <span className="bg-white/30 px-2 py-0.5 rounded text-xs">199 ₽ / мес</span>
-                    </button>
-                )}
-                {paymentPending && <p className="text-center text-xs text-slate-400 animate-pulse">Обработка платежа...</p>}
-             </div>
-         </div>
-         {/* Decor */}
-         <div className="absolute top-0 right-0 w-40 h-40 bg-blue-500 rounded-full blur-[60px] opacity-20 pointer-events-none"></div>
-      </div>
-
-      {/* --- EXTERNAL SUBSCRIPTIONS --- */}
       <div className="flex-1 flex flex-col min-h-0">
-          <div className="flex justify-between items-end mb-4">
+          <div className="flex justify-between items-end mb-5 px-1">
               <div>
-                  <h3 className="text-xl font-bold text-slate-800 dark:text-white">Внешние сервисы</h3>
-                  <p className="text-xs text-slate-400">Итого в месяц: {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(totalMonthly)}</p>
+                  <h3 className="text-xl font-bold text-slate-800 dark:text-white">Список сервисов</h3>
+                  <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Расход в месяц:</span>
+                      <span className="text-sm font-bold text-slate-800 dark:text-white bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md">
+                        {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(totalMonthly)}
+                      </span>
+                  </div>
               </div>
-              <button onClick={() => setShowAdd(true)} className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors">
-                  <Icon name="plus" size={20} />
-              </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-3 pb-20 no-scrollbar">
-            {loadingSubs ? (
-                <div className="text-center py-10 text-slate-400">Загрузка...</div>
-            ) : externalSubs.length === 0 ? (
-                <div className="text-center py-10 text-slate-400 dark:text-slate-600 border-2 border-dashed border-slate-100 dark:border-slate-700 rounded-3xl">
-                    <p>Нет подписок</p>
+          <div className="flex-1 overflow-y-auto space-y-4 no-scrollbar">
+            {loadingSubs ? <div className="text-center py-10 text-slate-400">Загрузка...</div> : 
+             externalSubs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2rem]">
+                    <Icon name="layers" size={48} className="mb-4 opacity-20" />
+                    <p className="font-medium">Добавьте свои сервисы (Netflix, Yandex...)</p>
+                    <button onClick={() => setShowAdd(true)} className="mt-4 px-6 py-2 bg-indigo-50 text-indigo-600 rounded-xl font-bold text-sm">Добавить</button>
                 </div>
             ) : (
                 externalSubs.map(sub => (
-                    <div key={sub.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                        <div className="flex justify-between items-start mb-3">
-                            <div className="flex gap-3 items-center">
-                                <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 flex items-center justify-center text-lg">
-                                    <Icon name="credit-card" size={20} />
+                    <div key={sub.id} className="bg-white dark:bg-slate-800 p-5 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow group">
+                        <div className="flex justify-between items-start mb-4">
+                            <div className="flex gap-4 items-center">
+                                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xl font-bold uppercase shadow-sm">
+                                    {sub.name.charAt(0)}
                                 </div>
                                 <div>
-                                    <h4 className="font-bold text-slate-800 dark:text-white">{sub.name}</h4>
-                                    <p className="text-xs text-slate-400">{sub.amount} ₽ / {sub.billingPeriod === 'MONTHLY' ? 'мес' : 'год'}</p>
+                                    <h4 className="font-bold text-slate-800 dark:text-white text-lg">{sub.name}</h4>
+                                    <p className="text-xs font-medium text-slate-400">{sub.amount} ₽ / {sub.billingPeriod === 'MONTHLY' ? 'мес' : 'год'}</p>
                                 </div>
                             </div>
-                            <div className={`text-xs font-bold px-2 py-1 rounded-lg ${
-                                new Date(sub.nextPaymentDate) < new Date() ? 'bg-red-100 text-red-600' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
+                            <div className={`text-[10px] font-bold px-2.5 py-1.5 rounded-lg uppercase tracking-wide ${
+                                new Date(sub.nextPaymentDate) < new Date() ? 'bg-red-50 text-red-500' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
                             }`}>
-                                {new Date(sub.nextPaymentDate).toLocaleDateString()}
+                                {new Date(sub.nextPaymentDate).toLocaleDateString(undefined, {month:'short', day:'numeric'})}
                             </div>
                         </div>
                         
-                        <div className="flex gap-2 border-t border-slate-50 dark:border-slate-700 pt-3">
-                            <button 
-                                onClick={() => handleLogPayment(sub)}
-                                className="flex-1 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold rounded-lg hover:bg-emerald-100 transition-colors"
-                            >
-                                Продлить
+                        <div className="flex gap-3">
+                            <button onClick={() => handleLogPayment(sub)} className="flex-1 py-3 bg-slate-50 dark:bg-slate-700/50 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 active:scale-95">
+                                <Icon name="check" size={14} /> Записать платеж
                             </button>
-                            <button 
-                                onClick={() => handleDeleteExternal(sub.id)}
-                                className="py-2 px-3 bg-red-50 dark:bg-red-900/10 text-red-400 text-xs font-bold rounded-lg hover:bg-red-100 transition-colors"
-                            >
-                                <Icon name="trash-2" size={14} />
+                            <button onClick={() => handleDeleteExternal(sub.id)} className="w-12 flex items-center justify-center bg-red-50 dark:bg-red-900/10 text-red-500 rounded-xl hover:bg-red-100 transition-colors active:scale-95">
+                                <Icon name="trash-2" size={16} />
                             </button>
                         </div>
                     </div>
@@ -283,45 +167,36 @@ const Subscriptions: React.FC<SubscriptionsProps> = ({ onBack, onUpdate }) => {
           </div>
       </div>
 
-      {/* Add External Sub Modal */}
+      <button onClick={() => setShowAdd(true)} className="fixed bottom-24 right-5 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-xl flex items-center justify-center z-40 animate-pop active:scale-90 transition-transform"><Icon name="plus" /></button>
+
       {showAdd && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end justify-center sm:items-center p-4">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-3xl p-6 animate-in slide-in-from-bottom-10 shadow-2xl">
-            <h3 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">Добавить сервис</h3>
-            <form onSubmit={handleSaveExternal} className="space-y-4">
-              <input 
-                placeholder="Название (Netflix, Яндекс...)" 
-                className="w-full p-3 bg-slate-50 dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white"
-                value={name} onChange={e => setName(e.target.value)} autoFocus required
-              />
-              <div className="flex gap-3">
-                <input 
-                  type="number" 
-                  placeholder="Сумма" 
-                  className="flex-1 p-3 bg-slate-50 dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white"
-                  value={amount} onChange={e => setAmount(e.target.value)} required
-                />
-                 <select 
-                   value={period} 
-                   onChange={(e: any) => setPeriod(e.target.value)}
-                   className="p-3 bg-slate-50 dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 outline-none text-slate-800 dark:text-white"
-                 >
-                   <option value="MONTHLY">Мес</option>
-                   <option value="YEARLY">Год</option>
-                 </select>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end justify-center sm:items-center p-4">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] p-8 animate-in slide-in-from-bottom-10 shadow-2xl relative">
+            <button onClick={() => setShowAdd(false)} className="absolute top-6 right-6 w-8 h-8 flex items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500"><Icon name="x" size={16} /></button>
+            <h3 className="text-2xl font-black mb-6 text-slate-800 dark:text-white">Новая подписка</h3>
+            <form onSubmit={handleSaveExternal} className="space-y-5">
+              <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase mb-2 pl-1">Название</label>
+                  <input placeholder="Netflix, Spotify..." className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-800 dark:text-white" value={name} onChange={e => setName(e.target.value)} autoFocus required />
+              </div>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                     <label className="block text-xs font-bold text-slate-400 uppercase mb-2 pl-1">Сумма</label>
+                     <input type="number" placeholder="299" className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800 dark:text-white" value={amount} onChange={e => setAmount(e.target.value)} required />
+                </div>
+                 <div className="w-1/3">
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-2 pl-1">Период</label>
+                    <select value={period} onChange={(e: any) => setPeriod(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none outline-none font-bold text-slate-800 dark:text-white appearance-none">
+                       <option value="MONTHLY">Мес</option>
+                       <option value="YEARLY">Год</option>
+                     </select>
+                 </div>
               </div>
               <div>
-                <label className="text-xs text-slate-400 font-bold ml-1">Следующая оплата</label>
-                <input 
-                  type="date" 
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 outline-none focus:ring-2 focus:ring-blue-500 mt-1 text-slate-800 dark:text-white"
-                  value={date} onChange={e => setDate(e.target.value)} required
-                />
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-2 pl-1">Дата списания</label>
+                <input type="date" className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-800 dark:text-white" value={date} onChange={e => setDate(e.target.value)} required />
               </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowAdd(false)} className="flex-1 py-3 text-slate-500 font-bold">Отмена</button>
-                <button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg">Сохранить</button>
-              </div>
+              <button type="submit" className="w-full py-4 bg-slate-900 dark:bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-slate-300 dark:shadow-indigo-900/50 mt-4 active:scale-95 transition-transform">Добавить</button>
             </form>
           </div>
         </div>

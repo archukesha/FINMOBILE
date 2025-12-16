@@ -33,6 +33,7 @@ export interface Goal {
   currentAmount: number;
   deadline?: string;
   color: string;
+  icon: string;
 }
 
 export interface FinancialStats {
@@ -55,12 +56,15 @@ export interface Subscription {
 
 export interface Debt {
   id: string;
-  type: 'I_OWE' | 'OWE_ME';
-  person: string;
-  amount: number; // Current remaining amount
-  initialAmount: number;
-  currency: string;
-  dueDate?: string;
+  type: 'BANK_LOAN' | 'I_OWE' | 'OWE_ME';
+  title: string; // Bank name or Person name
+  totalAmount: number; // Total loan amount or debt
+  remainingAmount: number;
+  interestRate?: number; // % per year (for banks)
+  monthlyPayment?: number; // Calculated or manual
+  termMonths?: number; 
+  startDate: string;
+  nextPaymentDate?: string;
 }
 
 export interface Achievement {
@@ -96,7 +100,8 @@ export type ViewState =
   | 'SETTINGS'
   | 'REMINDERS';
 
-export type SubscriptionLevel = 'FREE' | 'PRO' | 'PREMIUM';
+// 4 Levels as requested
+export type SubscriptionLevel = 'FREE' | 'PLUS' | 'PRO' | 'MAX';
 
 export type Theme = 'LIGHT' | 'DARK';
 
@@ -130,19 +135,55 @@ export interface AiAdviceRequest {
     expense: number;
     balance: number;
     topCategory: string;
+    month: string; // "YYYY-MM"
+}
+
+// --- REMINDER TYPES ---
+
+export type RepeatType = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+export type ReminderChannel = 'TELEGRAM'; // Removed PUSH as requested
+
+export interface RepeatConfig {
+    type: RepeatType;
+    every?: number; // e.g., every 2 days
+    weekDays?: number[]; // 1=Mon, 7=Sun
 }
 
 export interface Reminder {
     id: string;
-    text: string;
-    createdAt: string;
-    sentAt?: string;
-    status: 'PENDING' | 'SENT' | 'FAILED';
+    title: string;
+    message?: string;
+    scheduledAt: string; // ISO 8601 with timezone
+    nextRun?: string;
+    repeat: RepeatConfig;
+    timezone: string; // e.g. "Europe/Moscow"
+    channels: ReminderChannel[];
+    isActive: boolean;
+}
+
+export interface ReminderHistoryItem {
+    id: string;
+    reminderId: string;
+    title: string;
+    scheduledAt: string;
+    sentAt: string;
+    status: 'SENT' | 'FAILED' | 'CANCELLED';
+    providerInfo?: {
+        provider: ReminderChannel;
+        error?: string;
+    };
 }
 
 export interface ReminderSettings {
-    isEnabled: boolean;
+    enabled: boolean;
     timezone: string;
+    defaultChannels: ReminderChannel[];
+    defaultTime: string; // "09:00"
+}
+
+export interface ReminderListResponse {
+    items: Reminder[];
+    total: number;
 }
 
 // --- Telegram Types ---

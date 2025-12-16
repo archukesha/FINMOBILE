@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Goal, SubscriptionLevel } from '../types';
-import { getGoals, saveGoal, deleteGoal } from '../services/storage';
+import { getGoals, saveGoal, deleteGoal, updateGoalProgress } from '../services/storage';
 import PremiumBlock from './PremiumBlock';
 import Icon from './Icon';
 
@@ -14,140 +14,96 @@ interface GoalsProps {
 const Goals: React.FC<GoalsProps> = ({ refreshTrigger, subscriptionLevel, onGoToSettings }) => {
   const [goals, setGoals] = useState<Goal[]>(getGoals());
   const [showAdd, setShowAdd] = useState(false);
-  const [newGoalName, setNewGoalName] = useState('');
-  const [newGoalAmount, setNewGoalAmount] = useState('');
+  const [form, setForm] = useState({ name: '', target: '', icon: 'target' });
 
-  // Update local state when parent triggers refresh
-  React.useEffect(() => {
-    setGoals(getGoals());
-  }, [refreshTrigger]);
+  React.useEffect(() => { setGoals(getGoals()); }, [refreshTrigger]);
 
-  // --- ACCESS CHECK (PRO or PREMIUM) ---
-  const hasAccess = subscriptionLevel === 'PRO' || subscriptionLevel === 'PREMIUM';
+  const hasAccess = subscriptionLevel !== 'FREE'; // Available from PLUS
+  if (!hasAccess) return <PremiumBlock onGoToSettings={onGoToSettings} title="Финансовые цели" />;
 
-  if (!hasAccess) {
-    return <PremiumBlock onGoToSettings={onGoToSettings} title="Финансовые цели" />;
+  const handleAdd = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!form.name || !form.target) return;
+      saveGoal({
+          id: crypto.randomUUID(),
+          name: form.name,
+          targetAmount: Math.abs(parseFloat(form.target)), // Prevent negative target
+          currentAmount: 0,
+          color: '#4f46e5',
+          icon: form.icon
+      });
+      setGoals(getGoals());
+      setShowAdd(false);
+      setForm({ name: '', target: '', icon: 'target' });
+  };
+
+  const quickAdd = (id: string) => {
+      const amountStr = prompt("Какую сумму добавить в копилку?");
+      if(amountStr) {
+          const val = parseFloat(amountStr);
+          if (isNaN(val) || val <= 0) {
+              alert("Введите положительное число");
+              return;
+          }
+          updateGoalProgress(id, val);
+          setGoals(getGoals());
+      }
   }
 
-  const handleAddGoal = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newGoalName || !newGoalAmount) return;
-
-    const newGoal: Goal = {
-      id: crypto.randomUUID(),
-      name: newGoalName,
-      targetAmount: parseFloat(newGoalAmount),
-      currentAmount: 0,
-      color: '#3b82f6' // Default blue
-    };
-
-    saveGoal(newGoal);
-    setGoals(getGoals());
-    setShowAdd(false);
-    setNewGoalName('');
-    setNewGoalAmount('');
-  };
-
-  const handleDeleteGoal = (id: string) => {
-    if (confirm('Вы уверены, что хотите удалить эту цель?')) {
-      deleteGoal(id);
-      setGoals(getGoals());
-    }
-  };
-
-  const formatCurrency = (val: number) => {
-     return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(val);
-  };
-
   return (
-    <div className="p-5 space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Финансовые цели</h2>
-        <button 
-          onClick={() => setShowAdd(!showAdd)}
-          className="bg-slate-900 dark:bg-slate-700 text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg shadow-slate-300 dark:shadow-slate-900/30 hover:bg-slate-800 transition-colors"
-        >
-          {showAdd ? 'Отмена' : '+ Создать'}
+    <div className="p-5 space-y-6 pb-32">
+       <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-black text-slate-800 dark:text-white">Мои Цели</h2>
+        <button onClick={() => setShowAdd(!showAdd)} className="w-10 h-10 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform">
+            <Icon name={showAdd ? "x" : "plus"} />
         </button>
-      </div>
+       </div>
 
-      {showAdd && (
-        <form onSubmit={handleAddGoal} className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-lg shadow-slate-100 dark:shadow-slate-900/50 border border-slate-100 dark:border-slate-700 space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
-          <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1">Название</label>
-            <input
-              type="text"
-              placeholder="Например, Отпуск"
-              className="w-full p-3 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-700 focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-800 dark:text-white"
-              value={newGoalName}
-              onChange={e => setNewGoalName(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1">Целевая сумма</label>
-            <input
-              type="number"
-              placeholder="0"
-              className="w-full p-3 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-700 focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-800 dark:text-white"
-              value={newGoalAmount}
-              onChange={e => setNewGoalAmount(e.target.value)}
-              required
-            />
-          </div>
-          <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow-md shadow-blue-200 dark:shadow-blue-900/50 hover:bg-blue-700 transition-colors">Сохранить цель</button>
-        </form>
-      )}
+       {showAdd && (
+           <form onSubmit={handleAdd} className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-xl animate-slide-up space-y-4">
+               <h3 className="font-bold text-lg mb-2 dark:text-white">Новая цель</h3>
+               <input placeholder="Название (напр. Машина)" className="w-full p-4 rounded-xl bg-slate-50 dark:bg-slate-700 outline-none font-bold text-slate-900 dark:text-white" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+               <input type="number" placeholder="Сумма" className="w-full p-4 rounded-xl bg-slate-50 dark:bg-slate-700 outline-none font-bold text-slate-900 dark:text-white" value={form.target} onChange={e => setForm({...form, target: e.target.value})} />
+               <button className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold">Создать</button>
+           </form>
+       )}
 
-      <div className="space-y-4 pb-20">
-        {goals.length === 0 ? (
-          <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700">
-            <span className="text-4xl block mb-2">🎯</span>
-            <p className="text-slate-400 font-medium">Нет целей. Самое время начать!</p>
-          </div>
-        ) : (
-          goals.map(goal => {
-            const percent = Math.min(100, Math.round((goal.currentAmount / goal.targetAmount) * 100));
-            return (
-              <div key={goal.id} className="bg-white dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden group">
-                <div className="flex justify-between items-start mb-4 relative z-10">
-                  <div className="flex items-center gap-3">
-                     <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-lg">🚀</div>
-                     <div>
-                        <h3 className="font-bold text-lg text-slate-800 dark:text-white leading-tight">{goal.name}</h3>
-                        <p className="text-xs text-slate-400 font-medium">Цель: {formatCurrency(goal.targetAmount)}</p>
-                     </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="block text-xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(goal.currentAmount)}</span>
-                    <button 
-                      onClick={() => handleDeleteGoal(goal.id)}
-                      className="text-slate-300 hover:text-red-400 transition-colors p-1"
-                      title="Удалить цель"
-                    >
-                      <Icon name="trash-2" size={16} />
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Progress Bar Background */}
-                <div className="w-full h-4 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden relative">
-                  <div 
-                    className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(59,130,246,0.5)]"
-                    style={{ width: `${percent}%` }}
-                  ></div>
-                </div>
-                <div className="flex justify-between mt-2 text-xs font-bold text-slate-400">
-                  <span>Старт</span>
-                  <span className={percent >= 100 ? 'text-emerald-500' : 'text-blue-500'}>{percent}%</span>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
+       <div className="grid grid-cols-1 gap-5">
+           {goals.map(g => {
+               const percent = Math.min(100, Math.round((g.currentAmount / g.targetAmount) * 100));
+               return (
+                   <div key={g.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden group">
+                       <div className="absolute top-0 right-0 p-4 opacity-10 text-[100px] leading-none -mr-4 -mt-4 transition-transform group-hover:rotate-12">
+                           <Icon name={g.icon || 'target'} size={100} />
+                       </div>
+                       
+                       <div className="relative z-10">
+                           <div className="flex justify-between items-start mb-4">
+                               <div>
+                                   <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Цель</div>
+                                   <h3 className="text-2xl font-black text-slate-900 dark:text-white">{g.name}</h3>
+                               </div>
+                               <button onClick={() => deleteGoal(g.id)} className="text-slate-300 hover:text-red-500"><Icon name="trash-2" size={18} /></button>
+                           </div>
+
+                           <div className="flex items-end gap-2 mb-2">
+                               <span className="text-3xl font-black text-indigo-600 dark:text-indigo-400">{g.currentAmount.toLocaleString()}</span>
+                               <span className="text-sm font-bold text-slate-400 mb-1">/ {g.targetAmount.toLocaleString()}</span>
+                           </div>
+
+                           <div className="w-full h-4 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden mb-4">
+                               <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-1000 ease-out" style={{width: `${percent}%`}}></div>
+                           </div>
+
+                           <button onClick={() => quickAdd(g.id)} className="w-full py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-transform flex justify-center items-center gap-2">
+                               <Icon name="plus" size={16} /> Пополнить
+                           </button>
+                       </div>
+                   </div>
+               )
+           })}
+       </div>
     </div>
   );
 };
-
 export default Goals;

@@ -12,19 +12,39 @@
         theme: {
           extend: {
             colors: {
-              primary: '#3b82f6',
+              primary: '#4f46e5', // Indigo 600
               secondary: '#64748b',
-              success: '#10b981',
-              danger: '#ef4444',
-              warning: '#f59e0b',
+              accent: '#f59e0b',
+              dark: '#0f172a',
+              card: 'rgba(255, 255, 255, 0.7)',
+              'card-dark': 'rgba(30, 41, 59, 0.7)',
+            },
+            fontFamily: {
+              sans: ['Inter', 'system-ui', 'sans-serif'],
             },
             animation: {
-              'page-enter': 'pageEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+              'page-enter': 'pageEnter 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+              'slide-up': 'slideUp 0.4s ease-out forwards',
+              'pop': 'pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              'pulse-slow': 'pulse 3s infinite',
+              'float': 'float 6s ease-in-out infinite',
             },
             keyframes: {
               pageEnter: {
-                '0%': { opacity: '0', transform: 'translateY(20px) scale(0.96)' },
-                '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+                '0%': { opacity: '0', transform: 'scale(0.96) translateY(10px)' },
+                '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
+              },
+              slideUp: {
+                '0%': { transform: 'translateY(100%)' },
+                '100%': { transform: 'translateY(0)' },
+              },
+              pop: {
+                '0%': { transform: 'scale(0.9)' },
+                '100%': { transform: 'scale(1)' },
+              },
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-10px)' },
               }
             }
           }
@@ -32,46 +52,58 @@
       }
     </script>
     <style>
-      /* Hide scrollbar for Chrome, Safari and Opera */
-      .no-scrollbar::-webkit-scrollbar {
-          display: none;
-      }
-      /* Hide scrollbar for IE, Edge and Firefox */
-      .no-scrollbar {
-          -ms-overflow-style: none;  /* IE and Edge */
-          scrollbar-width: none;  /* Firefox */
-      }
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap');
       
-      /* Smooth scrolling for the whole app */
-      html {
-        scroll-behavior: smooth;
+      body {
+        font-family: 'Inter', sans-serif;
         -webkit-tap-highlight-color: transparent;
       }
 
-      /* Base styles for animations */
-      .animate-page-enter {
-        animation: pageEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      
+      /* Glassmorphism Utilities */
+      .glass {
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+      }
+      .dark .glass {
+        background: rgba(15, 23, 42, 0.85);
       }
       
-      @keyframes pageEnter {
-        0% { opacity: 0; transform: translateY(15px) scale(0.98); }
-        100% { opacity: 1; transform: translateY(0) scale(1); }
+      .glass-card {
+        background: linear-gradient(145deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.6) 100%);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(255,255,255,0.4);
+      }
+      .dark .glass-card {
+        background: linear-gradient(145deg, rgba(30,41,59,0.9) 0%, rgba(15,23,42,0.6) 100%);
+        border: 1px solid rgba(255,255,255,0.05);
+      }
+
+      /* Safe Area */
+      .safe-area-bottom {
+        padding-bottom: env(safe-area-inset-bottom);
       }
     </style>
   <script type="importmap">
 {
   "imports": {
-    "react-dom/": "https://aistudiocdn.com/react-dom@^18.3.1/",
-    "react/": "https://aistudiocdn.com/react@^18.3.1/",
-    "react": "https://aistudiocdn.com/react@^18.3.1",
-    "recharts": "https://aistudiocdn.com/recharts@^3.5.0",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
-    "lucide-react": "https://esm.sh/lucide-react@0.330.0?external=react,react-dom"
+    "react": "https://esm.sh/react@18.3.1?dev",
+    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client?dev",
+    "react-dom": "https://esm.sh/react-dom@18.3.1?dev",
+    "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime?dev",
+    "recharts": "https://esm.sh/recharts@2.12.7?external=react,react-dom&dev",
+    "@google/genai": "https://esm.sh/@google/genai@0.1.1",
+    "lucide-react": "https://esm.sh/lucide-react@0.330.0?external=react&dev",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/"
   }
 }
 </script>
 </head>
-  <body class="bg-gray-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-300">
-    <div id="root"></div>
+  <body class="bg-slate-50 text-slate-900 dark:bg-[#0f1115] dark:text-slate-100 transition-colors duration-500 overflow-hidden selection:bg-indigo-500 selection:text-white">
+    <div id="root" class="h-full"></div>
   </body>
 </html>

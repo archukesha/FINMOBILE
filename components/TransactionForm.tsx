@@ -113,11 +113,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             const newDebt: Debt = {
                 id: crypto.randomUUID(),
                 type: 'OWE_ME',
-                person: clientName,
-                amount: remaining,
-                initialAmount: remaining,
-                currency: 'RUB',
-                dueDate: projectDueDate || undefined
+                title: clientName,
+                totalAmount: remaining,
+                remainingAmount: remaining,
+                startDate: new Date().toISOString(),
+                nextPaymentDate: projectDueDate || undefined
             };
             saveDebt(newDebt);
         }
@@ -180,7 +180,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   };
 
   const initCreateCategory = () => {
-    if (subscriptionLevel === 'PREMIUM') {
+    // Custom categories are available for PLUS, PRO, and MAX tiers
+    if (subscriptionLevel !== 'FREE') {
       setIsCreatingCategory(true);
     } else {
       setShowPremiumPrompt(true);
@@ -212,6 +213,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           setAmount(Math.round(total * (percent / 100)).toString());
       }
   };
+
+  const addAmount = (add: number) => {
+      const current = parseFloat(amount) || 0;
+      setAmount((current + add).toString());
+  }
 
   // Helper calculation for display
   const currentPrepaymentPercent = (amount && totalProjectAmount) 
@@ -385,6 +391,20 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             <span className="absolute right-0 bottom-4 text-slate-400 font-medium text-lg">₽</span>
           </div>
           
+          {/* Quick Input Chips */}
+          <div className="flex justify-center gap-2 mt-4 flex-wrap">
+             {[100, 500, 1000, 5000].map(val => (
+                 <button
+                    key={val}
+                    type="button"
+                    onClick={() => addAmount(val)}
+                    className="px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-95 transition-transform"
+                 >
+                     +{val}
+                 </button>
+             ))}
+          </div>
+          
           {/* Percentage Helper for Freelance */}
           {type === TransactionType.INCOME && isPrepayment && totalProjectAmount && (
              <div className="mt-2 text-xs font-bold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 inline-block px-2 py-1 rounded-md">
@@ -423,7 +443,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 onClick={initCreateCategory}
                 className="aspect-square rounded-2xl flex flex-col items-center justify-center gap-1 transition-all border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-slate-400 relative"
               >
-                {subscriptionLevel !== 'PREMIUM' && <span className="absolute top-1 right-1 text-[8px] bg-amber-400 text-amber-900 px-1 rounded-sm font-bold">PREM</span>}
+                {subscriptionLevel === 'FREE' && <span className="absolute top-1 right-1 text-[8px] bg-amber-400 text-amber-900 px-1 rounded-sm font-bold">PLUS</span>}
                 <span className="text-2xl"><Icon name="plus" /></span>
                 <span className="text-[10px] font-medium">Создать</span>
               </button>
