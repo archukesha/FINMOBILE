@@ -292,8 +292,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       saveTransaction({
         id: crypto.randomUUID(),
         type: TransactionType.SAVING_DEPOSIT,
-        categoryId: 'sav_transfer',
         ...txBase,
+        categoryId: 'sav_transfer',
         goalId
       });
       if (goalId) updateGoalProgress(goalId, normalizedAmount);
