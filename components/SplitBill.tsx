@@ -1,6 +1,8 @@
 
 import React, { useState } from 'react';
 import Icon from './Icon';
+import { getCurrency } from '../services/storage';
+import { CURRENCY_SYMBOLS } from '../constants';
 
 interface SplitBillProps {
     onBack: () => void;
@@ -10,6 +12,16 @@ const SplitBill: React.FC<SplitBillProps> = ({ onBack }) => {
     const [total, setTotal] = useState('');
     const [people, setPeople] = useState(2);
     const [tip, setTip] = useState(0);
+    const currency = getCurrency();
+    const currencySymbol = CURRENCY_SYMBOLS[currency] || '₽';
+
+    const handleTotalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        // Allow only positive numbers and decimals
+        if (val === '' || /^\d*\.?\d*$/.test(val)) {
+            setTotal(val);
+        }
+    };
 
     const amount = parseFloat(total) || 0;
     const finalAmount = amount + (amount * (tip / 100));
@@ -26,11 +38,12 @@ const SplitBill: React.FC<SplitBillProps> = ({ onBack }) => {
 
             <div className="flex-1 space-y-8">
                 <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Сумма чека</label>
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Сумма чека ({currency})</label>
                     <input 
-                        type="number" 
+                        type="text" 
+                        inputMode="decimal"
                         value={total} 
-                        onChange={e => setTotal(e.target.value)}
+                        onChange={handleTotalChange}
                         placeholder="0" 
                         className="w-full text-5xl font-black bg-transparent outline-none dark:text-white placeholder-slate-200" 
                         autoFocus
@@ -69,9 +82,9 @@ const SplitBill: React.FC<SplitBillProps> = ({ onBack }) => {
                 <div className="bg-slate-50 dark:bg-slate-800 p-6 rounded-[2rem] text-center">
                     <p className="text-slate-400 font-bold uppercase text-xs mb-2">С каждого по</p>
                     <div className="text-4xl font-black text-indigo-600 dark:text-indigo-400">
-                        {perPerson.toFixed(0)} ₽
+                        {perPerson.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} {currencySymbol}
                     </div>
-                    {tip > 0 && <p className="text-xs text-slate-400 mt-2">Включая чаевые {(amount * tip/100).toFixed(0)} ₽</p>}
+                    {tip > 0 && <p className="text-xs text-slate-400 mt-2">Включая чаевые {(amount * tip/100).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} {currencySymbol}</p>}
                 </div>
             </div>
         </div>

@@ -11,9 +11,9 @@ import Subscriptions from './components/Subscriptions';
 import Debts from './components/Debts';
 import Education from './components/Education';
 import Reminders from './components/Reminders';
-import CalendarView from './components/CalendarView'; // New
-import SplitBill from './components/SplitBill'; // New
-import Onboarding from './components/Onboarding'; // New
+import CalendarView from './components/CalendarView'; 
+import SplitBill from './components/SplitBill'; 
+import Onboarding from './components/Onboarding'; 
 import Icon from './components/Icon';
 import { ViewState, SubscriptionLevel, Transaction, TelegramUser } from './types';
 import { getCategories, getSubscriptionLevel, setSubscriptionLevel, checkAchievements, getTheme, saveTheme, hasSeenOnboarding, setSeenOnboarding, setSharedWalletId } from './services/storage';
@@ -119,9 +119,20 @@ const App: React.FC = () => {
 
   const handleTransactionComplete = () => {
     refreshData();
+    if (editingTransaction && !window.localStorage.getItem('finbot_transactions')?.includes(editingTransaction.id)) {
+        // Check if it was deleted (simple check) - actually TransactionForm handles delete separately now but let's be safe
+        // Ideally TransactionForm should return a status
+        // For now, if we are here via onComplete from Edit Mode, it's usually save.
+        // But if we delete, TransactionForm calls onComplete too.
+        // We will trust the Form to manage its internal state or we can accept an arg in onComplete
+    }
+    
     setEditingTransaction(null);
     setActiveView('DASHBOARD');
-    showToast('Операция сохранена');
+    
+    // Check if the transaction still exists to determine "Saved" vs "Deleted"
+    // This is a bit hacky, better to pass an argument
+    showToast('Данные обновлены');
   };
 
   const handleGoToSettings = () => {

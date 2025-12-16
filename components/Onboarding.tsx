@@ -106,7 +106,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                             }`}
                         >
                             <span className="font-bold text-lg">
-                                {notificationsEnabled ? 'Уведомления включены' : 'Не беспокоить'}
+                                {notificationsEnabled ? 'Уведомления включены' : 'Уведомления выключены'}
                             </span>
                             <div className={`w-12 h-7 rounded-full bg-black/20 relative`}>
                                 <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-all ${notificationsEnabled ? 'left-6' : 'left-1'}`}></div>

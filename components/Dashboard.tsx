@@ -1,8 +1,10 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
-import { Transaction, Category, TransactionType, Achievement, Debt, SmartInsight, ViewState } from '../types';
-import { getTransactionsByMonth, getAchievements, getDebts, deleteTransaction, getTransactions } from '../services/storage';
+import { Transaction, Category, TransactionType, ViewState } from '../types';
+import { getTransactionsByMonth, deleteTransaction, getTransactions, getCurrency } from '../services/storage';
 import { api } from '../services/api';
 import { haptic } from '../services/telegram';
+import { CURRENCY_RATES } from '../constants';
 import Icon from './Icon';
 import SwipeableRow from './SwipeableRow';
 
@@ -14,7 +16,7 @@ interface DashboardProps {
   onEditTransaction: (tx: Transaction) => void;
   onOpenExpectedIncome?: () => void;
   onNavigate: (view: ViewState) => void;
-  isPrivacyMode: boolean; // New Prop
+  isPrivacyMode: boolean;
 }
 
 const TransactionSkeleton = () => (
@@ -32,6 +34,7 @@ const TransactionSkeleton = () => (
 
 const Dashboard: React.FC<DashboardProps> = ({ categories, refreshTrigger, currentDate, onDateChange, onEditTransaction, onNavigate, isPrivacyMode }) => {
   const [loading, setLoading] = useState(true);
+  const [userCurrency, setUserCurrency] = useState(getCurrency());
   
   // Filters & Search
   const [filterType] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL');
@@ -40,25 +43,32 @@ const Dashboard: React.FC<DashboardProps> = ({ categories, refreshTrigger, curre
 
   useEffect(() => {
     setLoading(true);
-    
+    setUserCurrency(getCurrency());
     // Load Smart Insight (fire and forget)
     api.ai.getSmartInsights(getTransactions());
 
     setTimeout(() => setLoading(false), 500);
   }, [refreshTrigger, currentDate]);
 
+  // Helper to convert RUB (base) to user currency
+  const convertAmount = (amountInRub: number) => {
+      const rate = CURRENCY_RATES[userCurrency] || 1;
+      return amountInRub / rate;
+  };
+
   const monthData = useMemo(() => {
     const txs = getTransactionsByMonth(currentDate);
-    const income = txs.filter(t => t.type === TransactionType.INCOME).reduce((acc, t) => acc + t.amount, 0);
-    const expense = txs.filter(t => t.type === TransactionType.EXPENSE).reduce((acc, t) => acc + t.amount, 0);
+    const incomeRUB = txs.filter(t => t.type === TransactionType.INCOME).reduce((acc, t) => acc + t.amount, 0);
+    // Include SAVING_DEPOSIT in expenses as it is money leaving the wallet (transfer to goal)
+    const expenseRUB = txs.filter(t => t.type === TransactionType.EXPENSE || t.type === TransactionType.SAVING_DEPOSIT).reduce((acc, t) => acc + t.amount, 0);
     
     // Previous Month Comparison logic
     const prevDate = new Date(currentDate);
     prevDate.setMonth(prevDate.getMonth() - 1);
     const prevTxs = getTransactionsByMonth(prevDate);
-    const prevExpense = prevTxs.filter(t => t.type === TransactionType.EXPENSE).reduce((acc, t) => acc + t.amount, 0);
+    const prevExpenseRUB = prevTxs.filter(t => t.type === TransactionType.EXPENSE || t.type === TransactionType.SAVING_DEPOSIT).reduce((acc, t) => acc + t.amount, 0);
     
-    const expenseDiff = prevExpense > 0 ? ((expense - prevExpense) / prevExpense) * 100 : 0;
+    const expenseDiff = prevExpenseRUB > 0 ? ((expenseRUB - prevExpenseRUB) / prevExpenseRUB) * 100 : 0;
 
     // Apply Filters & Search
     let filteredTxs = txs;
@@ -80,19 +90,19 @@ const Dashboard: React.FC<DashboardProps> = ({ categories, refreshTrigger, curre
 
     return {
       txs: filteredTxs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-      income,
-      expense,
-      balance: income - expense,
+      income: convertAmount(incomeRUB),
+      expense: convertAmount(expenseRUB),
+      balance: convertAmount(incomeRUB - expenseRUB),
       expenseDiff
     };
-  }, [refreshTrigger, currentDate, filterType, filterMinAmount, searchQuery]);
+  }, [refreshTrigger, currentDate, filterType, filterMinAmount, searchQuery, userCurrency]);
 
   const getCategoryName = (id: string) => categories.find(c => c.id === id)?.name || 'Неизвестно';
   const getCategoryIcon = (id: string) => categories.find(c => c.id === id)?.icon || 'circle';
   const getCategoryColor = (id: string) => categories.find(c => c.id === id)?.color || '#94a3b8';
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(amount);
+    return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: userCurrency, maximumFractionDigits: 0 }).format(amount);
   };
 
   const changeMonth = (offset: number) => {
@@ -120,13 +130,23 @@ const Dashboard: React.FC<DashboardProps> = ({ categories, refreshTrigger, curre
   }, [monthData.txs]);
 
   const getDateLabel = (dateStr: string) => {
-      const date = new Date(dateStr);
-      const today = new Date();
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
+      // Parse YYYY-MM-DD manually to avoid timezone shift
+      const parts = dateStr.split('-');
+      const year = parseInt(parts[0]);
+      const month = parseInt(parts[1]) - 1;
+      const day = parseInt(parts[2]);
+      
+      const date = new Date(year, month, day);
+      
+      // Compare with today/yesterday using local dates
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const yesterday = new Date(today);
+      yesterday.setDate(today.getDate() - 1);
 
-      if (date.toDateString() === today.toDateString()) return 'Сегодня';
-      if (date.toDateString() === yesterday.toDateString()) return 'Вчера';
+      if (date.getTime() === today.getTime()) return 'Сегодня';
+      if (date.getTime() === yesterday.getTime()) return 'Вчера';
+      
       return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'short' });
   };
 
@@ -256,7 +276,7 @@ const Dashboard: React.FC<DashboardProps> = ({ categories, refreshTrigger, curre
                                         <div className="flex items-center gap-4">
                                             <div 
                                                 className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-md text-xl shrink-0"
-                                                style={{ backgroundColor: tx.type === TransactionType.EXPENSE ? getCategoryColor(tx.categoryId) : '#10b981' }}
+                                                style={{ backgroundColor: tx.type === TransactionType.EXPENSE || tx.type === TransactionType.SAVING_DEPOSIT ? getCategoryColor(tx.categoryId) : '#10b981' }}
                                             >
                                                 <Icon name={tx.type === TransactionType.INCOME ? 'wallet' : getCategoryIcon(tx.categoryId)} size={22} />
                                             </div>
@@ -269,7 +289,7 @@ const Dashboard: React.FC<DashboardProps> = ({ categories, refreshTrigger, curre
                                             </div>
                                         </div>
                                         <div className={`font-bold text-base whitespace-nowrap ${tx.type === TransactionType.INCOME ? 'text-emerald-500' : 'text-slate-900 dark:text-white'} ${isPrivacyMode ? 'blur-sm' : ''}`}>
-                                            {tx.type === TransactionType.INCOME ? '+' : '-'}{Math.abs(tx.amount).toLocaleString('ru-RU')} ₽
+                                            {tx.type === TransactionType.INCOME ? '+' : '-'}{convertAmount(Math.abs(tx.amount)).toLocaleString('ru-RU', {maximumFractionDigits: 0})} {CURRENCY_RATES[userCurrency] !== 1 ? '' : '₽'}
                                         </div>
                                     </div>
                                 </SwipeableRow>

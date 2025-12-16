@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { TransactionType, Category, SubscriptionLevel, Transaction, Debt, Currency } from '../types';
 import { saveTransaction, updateGoalProgress, getGoals, saveCategory, deleteTransaction, updateTransaction, saveDebt, saveAllCategories, getCurrency } from '../services/storage';
 import { api } from '../services/api';
-import { COLORS, AVAILABLE_ICONS } from '../constants';
+import { COLORS, AVAILABLE_ICONS, CURRENCY_RATES } from '../constants';
 import PremiumBlock from './PremiumBlock';
 import { haptic } from '../services/telegram';
 import Icon from './Icon';
@@ -16,14 +16,6 @@ interface TransactionFormProps {
   onGoToSettings: () => void;
   initialData?: Transaction | null;
 }
-
-// Exchange Rates Mock
-const RATES: Record<Currency, number> = {
-    RUB: 1,
-    USD: 92.5,
-    EUR: 100.2,
-    KZT: 0.2
-};
 
 const getLocalDateString = () => {
     const d = new Date();
@@ -96,10 +88,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   }, [initialData]);
 
+  // Dynamically filter categories based on current type state
   const filteredCategories = localCategories.filter(c => {
     if (type === TransactionType.INCOME) return c.type === 'INCOME';
     if (type === TransactionType.EXPENSE) return c.type === 'EXPENSE';
-    return true; 
+    return true; // For deposit/other
   });
 
   // Safe Calculator Evaluation
@@ -138,45 +131,53 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         return;
     }
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'ru-RU';
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
+    try {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'ru-RU';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
 
-    setIsAiProcessing(true);
-    haptic.impact('light');
+        setIsAiProcessing(true);
+        haptic.impact('light');
 
-    recognition.start();
+        recognition.start();
 
-    recognition.onresult = async (event: any) => {
-        const text = event.results[0][0].transcript;
-        setNote(text); // Show raw text first
-        
-        try {
-            const parsed = await api.ai.parseVoiceCommand(text, categories);
-            if (parsed.amount) setAmountInput(parsed.amount.toString());
-            if (parsed.categoryId) setCategoryId(parsed.categoryId);
-            if (parsed.note) setNote(parsed.note);
-            haptic.notification('success');
-        } catch (e) {
-            console.error(e);
-        } finally {
+        recognition.onresult = async (event: any) => {
+            const text = event.results[0][0].transcript;
+            setNote(text); // Show raw text first
+            
+            try {
+                const parsed = await api.ai.parseVoiceCommand(text, categories);
+                if (parsed.amount) setAmountInput(parsed.amount.toString());
+                if (parsed.categoryId) setCategoryId(parsed.categoryId);
+                if (parsed.note) setNote(parsed.note);
+                haptic.notification('success');
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setIsAiProcessing(false);
+            }
+        };
+
+        recognition.onerror = (e: any) => {
+            console.warn("Speech error", e);
             setIsAiProcessing(false);
-        }
-    };
-
-    recognition.onerror = () => setIsAiProcessing(false);
-    recognition.onend = () => {
-        if (isAiProcessing) setIsAiProcessing(false); 
-    };
+            alert("Ошибка распознавания речи. Проверьте разрешения.");
+        };
+        recognition.onend = () => {
+            if (isAiProcessing) setIsAiProcessing(false); 
+        };
+    } catch (e) {
+        alert("Не удалось запустить голосовой ввод.");
+        setIsAiProcessing(false);
+    }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
 
-      // Basic image size validation (optional but recommended)
       if (file.size > 5 * 1024 * 1024) {
           alert("Файл слишком большой (макс 5МБ)");
           return;
@@ -218,9 +219,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     
     if (!finalVal || finalVal <= 0) return;
 
-    // Convert to Base Currency (RUB) for storage if needed, or store original
-    // For this app, we will store normalized amount (RUB) and original amount
-    const rate = RATES[currency] || 1;
+    // Normalize to RUB for storage
+    const rate = CURRENCY_RATES[currency] || 1;
     const normalizedAmount = finalVal * rate;
 
     haptic.impact('heavy');
@@ -259,7 +259,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             note: note ? `${note} (Предоплата)` : 'Предоплата по проекту'
         });
 
-        // Simplified Debt logic (assuming single currency for debts for now)
+        // Simplified Debt logic 
         const total = parseFloat(totalProjectAmount);
         const remaining = total - finalVal;
 
@@ -310,7 +310,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       saveTransaction({
         id: crypto.randomUUID(),
         type: type,
-        categoryId: categoryId || filteredCategories[0]?.id,
+        categoryId: categoryId || filteredCategories[0]?.id || 'exp_other', // Fallback
         ...txBase
       });
     }
@@ -386,12 +386,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           setAmountInput(Math.round(total * (percent / 100)).toString());
       }
   };
-
-  const addAmount = (add: number) => {
-      haptic.selection();
-      const current = parseFloat(amountInput) || 0;
-      setAmountInput((current + add).toString());
-  }
 
   const getGoalRemaining = (id: string) => {
       const goal = goals.find(g => g.id === id);
@@ -528,7 +522,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       <div className="grid grid-cols-3 gap-3 mb-6 mt-2">
         <button
           type="button"
-          onClick={() => { haptic.selection(); setType(TransactionType.EXPENSE); setIsPrepayment(false); }}
+          onClick={() => { haptic.selection(); setType(TransactionType.EXPENSE); setIsPrepayment(false); setCategoryId(''); }}
           className={`flex flex-col items-center justify-center py-3 rounded-2xl transition-all duration-200 border-2 active:scale-95 ${
             type === TransactionType.EXPENSE 
               ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-500 text-rose-600 dark:text-rose-400 shadow-md scale-105' 
@@ -543,7 +537,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
         <button
           type="button"
-          onClick={() => { haptic.selection(); setType(TransactionType.INCOME); setSplitSavings(false); }}
+          onClick={() => { haptic.selection(); setType(TransactionType.INCOME); setSplitSavings(false); setCategoryId(''); }}
           className={`flex flex-col items-center justify-center py-3 rounded-2xl transition-all duration-200 border-2 active:scale-95 ${
             type === TransactionType.INCOME
               ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500 text-emerald-600 dark:text-emerald-400 shadow-md scale-105' 
@@ -558,7 +552,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
         <button
           type="button"
-          onClick={() => { haptic.selection(); setType(TransactionType.SAVING_DEPOSIT); setIsPrepayment(false); }}
+          onClick={() => { haptic.selection(); setType(TransactionType.SAVING_DEPOSIT); setIsPrepayment(false); setCategoryId('sav_transfer'); }}
           className={`flex flex-col items-center justify-center py-3 rounded-2xl transition-all duration-200 border-2 active:scale-95 ${
             type === TransactionType.SAVING_DEPOSIT
               ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500 text-blue-600 dark:text-blue-400 shadow-md scale-105' 
@@ -641,7 +635,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                <button 
                 type="button" 
                 onClick={() => setIsReorderMode(!isReorderMode)}
-                className={`text-xs font-bold ${isReorderMode ? 'text-primary' : 'text-slate-400'}`}
+                className={`text-xs font-bold px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 ${isReorderMode ? 'text-primary' : 'text-slate-400'}`}
                >
                  {isReorderMode ? 'Готово' : 'Сортировка'}
                </button>
@@ -656,7 +650,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     onDragStart={(e) => handleDragStart(e, index)}
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDrop(e, index)}
-                    className={isReorderMode ? 'animate-pulse' : ''}
+                    className={isReorderMode ? 'animate-pulse cursor-move' : ''}
                 >
                     <button
                     type="button"

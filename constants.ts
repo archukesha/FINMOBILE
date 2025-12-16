@@ -1,5 +1,5 @@
 
-import { Category, Article, Achievement } from './types';
+import { Category, Article, Achievement, Currency } from './types';
 
 export const DEFAULT_CATEGORIES: Category[] = [
   // Income
@@ -44,6 +44,21 @@ export const AVAILABLE_ICONS = [
   'speaker', 'stamp', 'ticket', 'train', 'truck', 'tv', 'umbrella', 'utensils-crossed',
   'video', 'watch', 'wifi', 'wine'
 ];
+
+// Shared Currency Rates (Base: RUB)
+export const CURRENCY_RATES: Record<Currency, number> = {
+    RUB: 1,
+    USD: 92.5,
+    EUR: 100.2,
+    KZT: 0.2
+};
+
+export const CURRENCY_SYMBOLS: Record<Currency, string> = {
+    RUB: '₽',
+    USD: '$',
+    EUR: '€',
+    KZT: '₸'
+};
 
 // --- GENERATING 100+ ACHIEVEMENTS ---
 
