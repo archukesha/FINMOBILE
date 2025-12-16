@@ -34,8 +34,8 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
 
     const currencies: { code: Currency; label: string; symbol: string }[] = [
         { code: 'RUB', label: 'Российский Рубль', symbol: '₽' },
-        { code: 'USD', label: 'US Dollar', symbol: '$' },
-        { code: 'EUR', label: 'Euro', symbol: '€' },
+        { code: 'USD', label: 'Доллар США', symbol: '$' },
+        { code: 'EUR', label: 'Евро', symbol: '€' },
         { code: 'KZT', label: 'Тенге', symbol: '₸' },
     ];
 

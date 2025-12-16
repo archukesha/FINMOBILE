@@ -466,7 +466,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   }
 
   return (
-    <div className="p-4 bg-white dark:bg-slate-900 min-h-full flex flex-col pb-20 relative">
+    <div className="p-4 bg-white dark:bg-slate-900 h-full flex flex-col pb-20 relative">
       {/* AI Processing Overlay */}
       {isAiProcessing && (
           <div className="absolute inset-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm flex items-center justify-center flex-col animate-in fade-in">
@@ -477,7 +477,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           </div>
       )}
 
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-4 shrink-0">
         <h2 className="text-xl font-bold text-slate-800 dark:text-white">
           {isEditMode ? 'Редактировать' : 'Новая операция'}
         </h2>
@@ -502,7 +502,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                         onClick={() => fileInputRef.current?.click()}
                         className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center active:scale-95 transition-transform"
                     >
-                        <Icon name="scan" size={20} />
+                        <Icon name="camera" size={20} />
                     </button>
                 </div>
                 {isEditMode && (
@@ -519,7 +519,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       </div>
       
       {/* Type Switcher */}
-      <div className="grid grid-cols-3 gap-3 mb-6 mt-2">
+      <div className="grid grid-cols-3 gap-3 mb-6 mt-2 shrink-0">
         <button
           type="button"
           onClick={() => { haptic.selection(); setType(TransactionType.EXPENSE); setIsPrepayment(false); setCategoryId(''); }}
@@ -582,7 +582,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 value={amountInput}
                 onChange={handleAmountChange}
                 onBlur={handleBlurAmount}
-                className="w-full text-center py-2 bg-transparent border-b-2 border-slate-200 dark:border-slate-700 focus:border-primary focus:outline-none text-4xl font-bold text-slate-800 dark:text-white placeholder-slate-200 dark:placeholder-slate-700"
+                className="w-full text-center py-4 bg-slate-50 dark:bg-slate-800 border-b-4 border-indigo-500/20 focus:border-indigo-500 rounded-t-xl outline-none text-4xl font-black text-slate-900 dark:text-white placeholder-slate-300 dark:placeholder-slate-600 transition-colors"
                 placeholder="0"
                 required
                 autoFocus={!isEditMode}
@@ -591,7 +591,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
              <select 
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value as Currency)}
-                className="bg-slate-100 dark:bg-slate-800 font-bold text-sm rounded-lg px-2 py-1 outline-none text-slate-600 dark:text-slate-300"
+                className="bg-slate-100 dark:bg-slate-800 font-bold text-sm rounded-xl px-3 py-2 outline-none text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
              >
                  <option value="RUB">RUB</option>
                  <option value="USD">USD</option>
@@ -621,7 +621,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               onBlur={handleNoteBlur}
-              placeholder="Такси, Обед..."
+              placeholder="Например: Такси"
               className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary outline-none placeholder-slate-400"
             />
           </div>
@@ -642,7 +642,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             </div>
             
             {/* Expanded height for grid, using flex-1 to take available space but allowing scroll */}
-            <div className="grid grid-cols-4 gap-3 overflow-y-auto no-scrollbar pb-2 content-start flex-1" style={{ minHeight: '150px' }}>
+            <div className="grid grid-cols-4 gap-3 overflow-y-auto no-scrollbar pb-2 content-start flex-1" style={{ minHeight: '120px' }}>
               {filteredCategories.map((cat, index) => (
                 <div
                     key={cat.id}

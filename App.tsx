@@ -32,6 +32,7 @@ const App: React.FC = () => {
   
   // Settings State
   const [billingPeriod, setBillingPeriod] = useState<'MONTHLY' | 'YEARLY'>('MONTHLY');
+  const [pendingTariff, setPendingTariff] = useState<SubscriptionLevel | null>(null);
   
   // Advice Modal State
   const [isAdviceOpen, setIsAdviceOpen] = useState(false);
@@ -119,19 +120,8 @@ const App: React.FC = () => {
 
   const handleTransactionComplete = () => {
     refreshData();
-    if (editingTransaction && !window.localStorage.getItem('finbot_transactions')?.includes(editingTransaction.id)) {
-        // Check if it was deleted (simple check) - actually TransactionForm handles delete separately now but let's be safe
-        // Ideally TransactionForm should return a status
-        // For now, if we are here via onComplete from Edit Mode, it's usually save.
-        // But if we delete, TransactionForm calls onComplete too.
-        // We will trust the Form to manage its internal state or we can accept an arg in onComplete
-    }
-    
     setEditingTransaction(null);
     setActiveView('DASHBOARD');
-    
-    // Check if the transaction still exists to determine "Saved" vs "Deleted"
-    // This is a bit hacky, better to pass an argument
     showToast('Данные обновлены');
   };
 
@@ -167,10 +157,26 @@ const App: React.FC = () => {
   };
 
   const handleSelectTariff = (level: SubscriptionLevel) => {
-      setSubscriptionLevel(level);
-      setSubLevel(level);
-      const periodLabel = billingPeriod === 'MONTHLY' ? 'Месяц' : 'Год';
-      showToast(`Тариф изменен на ${level} (${periodLabel})`, 'success');
+      if (level === subLevel) return;
+      if (level === 'FREE') {
+          setSubscriptionLevel(level);
+          setSubLevel(level);
+          showToast(`Тариф сброшен на FREE`, 'success');
+      } else {
+          setPendingTariff(level);
+      }
+  };
+
+  const confirmSubscription = async () => {
+      if (!pendingTariff) return;
+      // Simulate Payment Process
+      showToast('Обработка платежа...', 'info');
+      await new Promise(r => setTimeout(r, 1500));
+      
+      setSubscriptionLevel(pendingTariff);
+      setSubLevel(pendingTariff);
+      setPendingTariff(null);
+      showToast(`Тариф ${pendingTariff} успешно активирован!`, 'success');
   };
 
   const getPrice = (monthly: number, yearly: number) => {
@@ -180,7 +186,7 @@ const App: React.FC = () => {
   const handleOnboardingComplete = () => {
       setSeenOnboarding();
       setShowOnboarding(false);
-      refreshData(); // Force refresh to apply currency settings if any
+      refreshData(); 
   };
 
   if (showOnboarding) {
@@ -219,7 +225,7 @@ const App: React.FC = () => {
           <Analytics 
             categories={categories} 
             subscriptionLevel={subLevel} 
-            onGoToSettings={handleGoToSettings}
+            onGoToSettings={handleGoToSettings} 
             currentDate={currentDate} 
             onBack={() => handleNavigate('DASHBOARD')}
           />
@@ -268,7 +274,32 @@ const App: React.FC = () => {
 
       case 'SETTINGS':
         return (
-          <div className="space-y-6 animate-page-enter h-full flex flex-col">
+          <div className="space-y-6 animate-page-enter h-full flex flex-col relative">
+             {/* Payment Modal Overlay */}
+             {pendingTariff && (
+                 <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in">
+                     <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-[2rem] p-6 shadow-2xl animate-in zoom-in-95">
+                         <div className="text-center mb-6">
+                             <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-indigo-600">
+                                 <Icon name="credit-card" size={32} />
+                             </div>
+                             <h3 className="text-xl font-black dark:text-white mb-2">Подтверждение</h3>
+                             <p className="text-slate-500 text-sm">
+                                 Вы переходите на тариф <span className="font-bold text-slate-800 dark:text-white">{pendingTariff}</span>.
+                                 <br/>Сумма списания: <span className="font-bold text-indigo-500">
+                                     {pendingTariff === 'PLUS' ? getPrice(99, 990) : pendingTariff === 'PRO' ? getPrice(199, 1990) : getPrice(499, 4990)}
+                                 </span>
+                             </p>
+                         </div>
+                         <div className="flex gap-3">
+                             <button onClick={() => setPendingTariff(null)} className="flex-1 py-3 font-bold text-slate-500 hover:bg-slate-100 rounded-xl">Отмена</button>
+                             <button onClick={confirmSubscription} className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/30">Оплатить</button>
+                         </div>
+                         <p className="text-[10px] text-center text-slate-400 mt-4">Тестовый режим: деньги не списываются</p>
+                     </div>
+                 </div>
+             )}
+
              <div className="flex items-center gap-4 p-5 pb-2">
                <button onClick={() => handleNavigate('HUB')} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
                   <Icon name="arrow-left" />
@@ -305,8 +336,8 @@ const App: React.FC = () => {
                 <div onClick={() => handleSelectTariff('FREE')} className={`border-2 p-5 rounded-3xl relative overflow-hidden transition-all ${subLevel === 'FREE' ? 'border-indigo-500 bg-white dark:bg-slate-800' : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 opacity-60'}`}>
                     <div className="flex justify-between items-start mb-2">
                         <div>
-                            <h3 className="font-black text-xl text-slate-800 dark:text-white">FREE</h3>
-                            <p className="text-xs font-bold text-slate-400 uppercase">Базовый старт</p>
+                            <h3 className="font-black text-xl text-slate-800 dark:text-white">Старт</h3>
+                            <p className="text-xs font-bold text-slate-400 uppercase">Базовый</p>
                         </div>
                         <div className="text-right">
                             <span className="font-bold text-slate-800 dark:text-white text-lg">0 ₽</span>
@@ -324,7 +355,7 @@ const App: React.FC = () => {
                 <div onClick={() => handleSelectTariff('PLUS')} className={`border-2 p-5 rounded-3xl relative overflow-hidden transition-all ${subLevel === 'PLUS' ? 'border-blue-500 bg-white dark:bg-slate-800' : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 opacity-60'}`}>
                     <div className="flex justify-between items-start mb-2">
                         <div>
-                            <h3 className="font-black text-xl text-slate-800 dark:text-white">PLUS</h3>
+                            <h3 className="font-black text-xl text-slate-800 dark:text-white">Плюс</h3>
                             <p className="text-xs font-bold text-blue-500 uppercase">Расширенный</p>
                         </div>
                         <div className="text-right">
@@ -344,8 +375,8 @@ const App: React.FC = () => {
                 <div onClick={() => handleSelectTariff('PRO')} className={`border-2 p-5 rounded-3xl relative overflow-hidden transition-all ${subLevel === 'PRO' ? 'border-purple-500 bg-white dark:bg-slate-800' : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 opacity-60'}`}>
                     <div className="flex justify-between items-start mb-2">
                         <div>
-                            <h3 className="font-black text-xl text-slate-800 dark:text-white">PRO</h3>
-                            <p className="text-xs font-bold text-purple-500 uppercase">Профессионал</p>
+                            <h3 className="font-black text-xl text-slate-800 dark:text-white">Профи</h3>
+                            <p className="text-xs font-bold text-purple-500 uppercase">Для опытных</p>
                         </div>
                         <div className="text-right">
                             <span className="font-bold text-slate-800 dark:text-white text-lg">{getPrice(199, 1990)}</span>
@@ -353,7 +384,7 @@ const App: React.FC = () => {
                         </div>
                     </div>
                     <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-1">
-                        <li>• Все функции PLUS</li>
+                        <li>• Все функции Плюс</li>
                         <li>• Учет Долгов и Кредитов</li>
                         <li>• Аналитика и Графики</li>
                         <li>• Мои Подписки (SaaS)</li>
@@ -365,8 +396,8 @@ const App: React.FC = () => {
                 <div onClick={() => handleSelectTariff('MAX')} className={`border-2 p-5 rounded-3xl relative overflow-hidden transition-all ${subLevel === 'MAX' ? 'border-amber-500 bg-white dark:bg-slate-800' : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 opacity-60'}`}>
                     <div className="flex justify-between items-start mb-2">
                         <div>
-                            <h3 className="font-black text-xl text-slate-800 dark:text-white">MAX</h3>
-                            <p className="text-xs font-bold text-amber-500 uppercase">Максимальный</p>
+                            <h3 className="font-black text-xl text-slate-800 dark:text-white">Макс</h3>
+                            <p className="text-xs font-bold text-amber-500 uppercase">Полный доступ</p>
                         </div>
                         <div className="text-right">
                             <span className="font-bold text-slate-800 dark:text-white text-lg">{getPrice(499, 4990)}</span>
@@ -374,7 +405,7 @@ const App: React.FC = () => {
                         </div>
                     </div>
                     <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-1">
-                        <li>• Все функции PRO</li>
+                        <li>• Все функции Профи</li>
                         <li>• AI Финансовый Советник</li>
                         <li>• Приоритетная поддержка</li>
                     </ul>

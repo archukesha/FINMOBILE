@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Debt, TransactionType, SubscriptionLevel } from '../types';
-import { getDebts, saveDebt, deleteDebt, saveTransaction, updateDebt } from '../services/storage';
+import { getDebts, saveDebt, deleteDebt, saveTransaction, updateDebt, getCurrency } from '../services/storage';
+import { CURRENCY_RATES, CURRENCY_SYMBOLS } from '../constants';
 import PremiumBlock from './PremiumBlock';
 import Icon from './Icon';
 import SwipeableRow from './SwipeableRow';
@@ -13,7 +14,6 @@ interface DebtsProps {
   onGoToSettings: () => void;
 }
 
-// Helper to display date string correctly without timezone shift
 const formatDateDisplay = (dateStr: string | undefined) => {
     if (!dateStr) return '';
     const parts = dateStr.split('-');
@@ -28,6 +28,7 @@ const Debts: React.FC<DebtsProps> = ({ onBack, initialTab, subscriptionLevel, on
   const [debts, setDebts] = useState<Debt[]>([]);
   const [activeTab, setActiveTab] = useState<'BANK_LOAN' | 'I_OWE' | 'OWE_ME'>('BANK_LOAN');
   const [showAdd, setShowAdd] = useState(false);
+  const [currency, setCurrency] = useState(getCurrency());
   
   // Form
   const [form, setForm] = useState<Partial<Debt>>({
@@ -52,11 +53,19 @@ const Debts: React.FC<DebtsProps> = ({ onBack, initialTab, subscriptionLevel, on
   useEffect(() => {
     refreshList();
     if (initialTab) setActiveTab(initialTab);
+    setCurrency(getCurrency());
   }, [initialTab]);
 
   const refreshList = () => {
       setDebts(getDebts());
   };
+
+  const convert = (val: number) => {
+      const rate = CURRENCY_RATES[currency] || 1;
+      return val / rate;
+  }
+
+  const symbol = CURRENCY_SYMBOLS[currency] || '₽';
 
   const handleSave = (e: React.FormEvent) => {
       e.preventDefault();
@@ -66,16 +75,20 @@ const Debts: React.FC<DebtsProps> = ({ onBack, initialTab, subscriptionLevel, on
         ? (form.totalAmount * (1 + form.interestRate/100)) / form.termMonths 
         : 0;
 
+      // Store in Base RUB
+      const rate = CURRENCY_RATES[currency] || 1;
+      const baseAmount = Number(form.totalAmount) * rate;
+
       saveDebt({
           id: crypto.randomUUID(),
           title: form.title,
-          totalAmount: Number(form.totalAmount),
-          remainingAmount: Number(form.totalAmount),
+          totalAmount: baseAmount,
+          remainingAmount: baseAmount,
           type: activeTab,
           startDate: new Date().toISOString(),
           interestRate: Number(form.interestRate),
           termMonths: Number(form.termMonths),
-          monthlyPayment: monthlyPmt > 0 ? monthlyPmt : undefined,
+          monthlyPayment: monthlyPmt > 0 ? monthlyPmt * rate : undefined,
           nextPaymentDate: form.nextPaymentDate || undefined
       });
       refreshList();
@@ -91,7 +104,9 @@ const Debts: React.FC<DebtsProps> = ({ onBack, initialTab, subscriptionLevel, on
   };
 
   const handleMakePayment = (debt: Debt) => {
-      const amountStr = prompt(`Внести платеж для "${debt.title}".\nОстаток: ${debt.remainingAmount} ₽\nВведите сумму:`);
+      // Calculate display amount
+      const remainingDisplay = convert(debt.remainingAmount);
+      const amountStr = prompt(`Внести платеж для "${debt.title}".\nОстаток: ${Math.round(remainingDisplay)} ${symbol}\nВведите сумму в ${symbol}:`);
       if (!amountStr) return;
       
       const amount = parseFloat(amountStr);
@@ -100,19 +115,23 @@ const Debts: React.FC<DebtsProps> = ({ onBack, initialTab, subscriptionLevel, on
           return;
       }
 
+      // Convert back to base for storage
+      const rate = CURRENCY_RATES[currency] || 1;
+      const baseAmount = amount * rate;
+
       // 1. Create Expense Transaction
       saveTransaction({
           id: crypto.randomUUID(),
-          amount: amount,
+          amount: baseAmount,
           type: TransactionType.EXPENSE,
-          currency: 'RUB',
+          currency: currency,
           categoryId: 'exp_debt', // Ensure this category exists in constants or storage logic
           date: new Date().toISOString().split('T')[0],
           note: `Платеж по долгу: ${debt.title}`
       });
 
       // 2. Update Debt Remaining Amount
-      const newRemaining = Math.max(0, debt.remainingAmount - amount);
+      const newRemaining = Math.max(0, debt.remainingAmount - baseAmount);
       const updatedDebt = { ...debt, remainingAmount: newRemaining };
       
       // Update next payment date if monthly (simple logic)
@@ -124,10 +143,18 @@ const Debts: React.FC<DebtsProps> = ({ onBack, initialTab, subscriptionLevel, on
 
       updateDebt(updatedDebt);
       refreshList();
-      alert(`Платеж ${amount} ₽ принят. Остаток: ${newRemaining} ₽`);
+      alert(`Платеж ${amount} ${symbol} принят.`);
   };
 
   const filtered = debts.filter(d => d.type === activeTab);
+
+  const getEmptyMessage = () => {
+      switch (activeTab) {
+          case 'BANK_LOAN': return "Здесь будут ваши кредиты, ипотека и рассрочки.";
+          case 'I_OWE': return "Запишите, если вы заняли у друга или коллеги.";
+          case 'OWE_ME': return "Здесь список тех, кто должен вам денег.";
+      }
+  }
 
   return (
     <div className="p-5 h-full flex flex-col pb-32 animate-page-enter">
@@ -156,19 +183,23 @@ const Debts: React.FC<DebtsProps> = ({ onBack, initialTab, subscriptionLevel, on
 
       <div className="flex-1 overflow-y-auto space-y-4 no-scrollbar">
           {filtered.length === 0 && (
-              <div className="text-center text-slate-400 py-10">
-                  <Icon name="check-circle" size={48} className="mx-auto mb-2 opacity-20" />
-                  <p>В этом разделе чисто</p>
+              <div className="text-center text-slate-400 py-10 px-6">
+                  <Icon name="check-circle" size={48} className="mx-auto mb-4 opacity-20" />
+                  <p className="font-bold text-slate-500 mb-2">В этом разделе чисто</p>
+                  <p className="text-xs">{getEmptyMessage()}</p>
               </div>
           )}
           {filtered.map(item => {
               const progress = Math.round(((item.totalAmount - item.remainingAmount) / item.totalAmount) * 100);
+              const displayRemaining = Math.round(convert(item.remainingAmount));
+              const displayMonthly = item.monthlyPayment ? Math.round(convert(item.monthlyPayment)) : null;
+
               return (
                 <SwipeableRow key={item.id} onSwipeLeft={() => handleDelete(item.id)} onSwipeRight={() => handleMakePayment(item)} rightIcon="check" rightColor="bg-slate-900 dark:bg-white">
                     <div className="bg-white dark:bg-slate-800 p-5 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm">
                         <div className="flex justify-between mb-2">
                             <div className="font-bold text-lg dark:text-white">{item.title}</div>
-                            <div className="font-black text-slate-900 dark:text-white">{item.remainingAmount.toLocaleString()} ₽</div>
+                            <div className="font-black text-slate-900 dark:text-white">{displayRemaining.toLocaleString()} {symbol}</div>
                         </div>
                         
                         {item.nextPaymentDate && (
@@ -182,9 +213,25 @@ const Debts: React.FC<DebtsProps> = ({ onBack, initialTab, subscriptionLevel, on
                             <div className="h-full bg-indigo-500" style={{width: `${progress}%`}}></div>
                         </div>
                         
-                        <div className="flex justify-between text-xs text-slate-400 font-bold uppercase">
+                        <div className="flex justify-between text-xs text-slate-400 font-bold uppercase mb-4">
                             <span>Выплачено {progress}%</span>
-                            {item.monthlyPayment && <span>{Math.round(item.monthlyPayment)} ₽/мес</span>}
+                            {displayMonthly && <span>{displayMonthly} {symbol}/мес</span>}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => handleMakePayment(item)}
+                                className="flex-1 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 rounded-xl text-xs font-bold"
+                            >
+                                Погасить
+                            </button>
+                            <button 
+                                onClick={() => handleDelete(item.id)}
+                                className="w-10 h-10 flex items-center justify-center bg-red-50 dark:bg-red-900/30 text-red-500 rounded-xl"
+                            >
+                                <Icon name="trash-2" size={16} />
+                            </button>
                         </div>
                     </div>
                 </SwipeableRow>
@@ -199,7 +246,11 @@ const Debts: React.FC<DebtsProps> = ({ onBack, initialTab, subscriptionLevel, on
               <form onSubmit={handleSave} className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-[2rem] p-6 space-y-4 shadow-2xl animate-in slide-in-from-bottom-10">
                   <h3 className="font-bold text-xl dark:text-white">Новая запись</h3>
                   <input placeholder="Название (Сбер, Иван...)" className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none font-bold dark:text-white" value={form.title} onChange={e => setForm({...form, title: e.target.value})} autoFocus />
-                  <input type="number" placeholder="Сумма долга" className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none font-bold dark:text-white" value={form.totalAmount || ''} onChange={e => setForm({...form, totalAmount: parseFloat(e.target.value)})} />
+                  
+                  <div className="relative">
+                      <input type="number" placeholder="Сумма долга" className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none font-bold dark:text-white pr-10" value={form.totalAmount || ''} onChange={e => setForm({...form, totalAmount: parseFloat(e.target.value)})} />
+                      <span className="absolute right-4 top-4 font-bold text-slate-400">{symbol}</span>
+                  </div>
                   
                   <div>
                       <label className="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Дата возврата / платежа</label>

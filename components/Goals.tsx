@@ -20,6 +20,10 @@ const Goals: React.FC<GoalsProps> = ({ refreshTrigger, subscriptionLevel, onGoTo
   const [form, setForm] = useState({ name: '', target: '', icon: 'target' });
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  
+  // Deposit Modal State
+  const [depositGoalId, setDepositGoalId] = useState<string | null>(null);
+  const [depositAmount, setDepositAmount] = useState('');
 
   React.useEffect(() => { setGoals(getGoals()); }, [refreshTrigger]);
 
@@ -42,21 +46,29 @@ const Goals: React.FC<GoalsProps> = ({ refreshTrigger, subscriptionLevel, onGoTo
       setForm({ name: '', target: '', icon: 'target' });
   };
 
-  const quickAdd = (id: string) => {
-      const amountStr = prompt("Какую сумму добавить в копилку?");
-      if(amountStr) {
-          const val = parseFloat(amountStr);
-          if (isNaN(val) || val <= 0) {
-              alert("Введите положительное число");
-              return;
-          }
-          updateGoalProgress(id, val);
+  const handleDepositSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if(depositGoalId && depositAmount) {
+          const val = parseFloat(depositAmount);
+          if (isNaN(val) || val <= 0) return;
+          
+          updateGoalProgress(depositGoalId, val);
           setGoals(getGoals());
+          setDepositGoalId(null);
+          setDepositAmount('');
+          
           // Trigger confetti
           setShowConfetti(true);
           setTimeout(() => setShowConfetti(false), 3000);
       }
-  }
+  };
+
+  const handleDeleteGoal = (id: string) => {
+      if(confirm('Удалить эту цель?')) {
+          deleteGoal(id);
+          setGoals(getGoals());
+      }
+  };
 
   const handleAiGenerate = async () => {
       setIsAiLoading(true);
@@ -72,17 +84,19 @@ const Goals: React.FC<GoalsProps> = ({ refreshTrigger, subscriptionLevel, onGoTo
   };
 
   return (
-    <div className="p-5 space-y-6 pb-32 relative overflow-hidden">
-       {/* Confetti CSS Mock */}
+    <div className="p-5 space-y-6 pb-32 relative">
+       {/* Confetti Animation */}
        {showConfetti && (
-           <div className="fixed inset-0 pointer-events-none z-50 flex justify-center overflow-hidden">
-               {[...Array(20)].map((_,i) => (
-                   <div key={i} className="absolute top-0 text-2xl animate-float" style={{
-                       left: `${Math.random()*100}%`,
-                       animationDuration: `${2+Math.random()*3}s`,
-                       animationDelay: `${Math.random()}s`
-                   }}>🎉</div>
-               ))}
+           <div className="fixed inset-0 pointer-events-none z-[100] overflow-hidden flex justify-center">
+               <div className="absolute inset-0 bg-transparent flex justify-center">
+                   {[...Array(30)].map((_,i) => (
+                       <div key={i} className="absolute top-0 text-3xl animate-float" style={{
+                           left: `${Math.random()*100}vw`,
+                           animationDuration: `${2+Math.random()*2}s`,
+                           animationDelay: `${Math.random()}s`
+                       }}>🎉</div>
+                   ))}
+               </div>
            </div>
        )}
 
@@ -101,7 +115,7 @@ const Goals: React.FC<GoalsProps> = ({ refreshTrigger, subscriptionLevel, onGoTo
        {showAdd && (
            <form onSubmit={handleAdd} className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-xl animate-slide-up space-y-4">
                <h3 className="font-bold text-lg mb-2 dark:text-white">Новая цель</h3>
-               <input placeholder="Название (напр. Машина)" className="w-full p-4 rounded-xl bg-slate-50 dark:bg-slate-700 outline-none font-bold text-slate-900 dark:text-white" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+               <input placeholder="Название (напр. Машина)" className="w-full p-4 rounded-xl bg-slate-50 dark:bg-slate-700 outline-none font-bold text-slate-900 dark:text-white" value={form.name} onChange={e => setForm({...form, name: e.target.value})} autoFocus />
                <input type="number" placeholder="Сумма" className="w-full p-4 rounded-xl bg-slate-50 dark:bg-slate-700 outline-none font-bold text-slate-900 dark:text-white" value={form.target} onChange={e => setForm({...form, target: e.target.value})} />
                <button className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold">Создать</button>
            </form>
@@ -111,9 +125,9 @@ const Goals: React.FC<GoalsProps> = ({ refreshTrigger, subscriptionLevel, onGoTo
            {goals.map(g => {
                const percent = Math.min(100, Math.round((g.currentAmount / g.targetAmount) * 100));
                return (
-                   <SwipeableRow key={g.id} onSwipeLeft={() => deleteGoal(g.id)}>
+                   <SwipeableRow key={g.id} onSwipeLeft={() => handleDeleteGoal(g.id)}>
                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden group">
-                           <div className="absolute top-0 right-0 p-4 opacity-10 text-[100px] leading-none -mr-4 -mt-4 transition-transform group-hover:rotate-12">
+                           <div className="absolute top-0 right-0 p-4 opacity-10 text-[100px] leading-none -mr-4 -mt-4 transition-transform group-hover:rotate-12 pointer-events-none">
                                <Icon name={g.icon || 'target'} size={100} />
                            </div>
                            
@@ -123,6 +137,12 @@ const Goals: React.FC<GoalsProps> = ({ refreshTrigger, subscriptionLevel, onGoTo
                                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Цель</div>
                                        <h3 className="text-2xl font-black text-slate-900 dark:text-white">{g.name}</h3>
                                    </div>
+                                   <button 
+                                        onClick={() => handleDeleteGoal(g.id)}
+                                        className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-400 flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-500 transition-colors"
+                                   >
+                                       <Icon name="trash-2" size={16} />
+                                   </button>
                                </div>
 
                                <div className="flex items-end gap-2 mb-2">
@@ -134,7 +154,7 @@ const Goals: React.FC<GoalsProps> = ({ refreshTrigger, subscriptionLevel, onGoTo
                                    <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-1000 ease-out" style={{width: `${percent}%`}}></div>
                                </div>
 
-                               <button onClick={() => quickAdd(g.id)} className="w-full py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-transform flex justify-center items-center gap-2">
+                               <button onClick={() => setDepositGoalId(g.id)} className="w-full py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-transform flex justify-center items-center gap-2">
                                    <Icon name="plus" size={16} /> Пополнить
                                </button>
                            </div>
@@ -143,6 +163,27 @@ const Goals: React.FC<GoalsProps> = ({ refreshTrigger, subscriptionLevel, onGoTo
                )
            })}
        </div>
+
+       {/* Deposit Modal */}
+       {depositGoalId && (
+           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+               <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setDepositGoalId(null)} />
+               <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-[2rem] p-6 relative z-10 animate-slide-up shadow-2xl">
+                   <h3 className="text-xl font-bold text-center mb-4 dark:text-white">Пополнить копилку</h3>
+                   <form onSubmit={handleDepositSubmit}>
+                       <input 
+                            type="number" 
+                            className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl text-center text-3xl font-black mb-6 outline-none dark:text-white focus:ring-2 focus:ring-indigo-500" 
+                            placeholder="0" 
+                            value={depositAmount}
+                            onChange={e => setDepositAmount(e.target.value)}
+                            autoFocus
+                       />
+                       <button className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold text-lg shadow-lg">Внести</button>
+                   </form>
+               </div>
+           </div>
+       )}
     </div>
   );
 };
