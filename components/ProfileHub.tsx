@@ -68,7 +68,7 @@ const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, 
       } else {
            // Fallback for browser
            window.open(url, '_blank');
-           copyLink(inviteLink, "Ссылка скопирована! Отправь её другу.");
+           copyLink(inviteLink, "Ссылка для приглашения скопирована!");
       }
   };
 
@@ -268,7 +268,7 @@ const ProfileHub: React.FC<ProfileHubProps> = ({ subscriptionLevel, onNavigate, 
                   <button
                     key={colorKey}
                     onClick={() => changeAccent(colorKey)}
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform ${accent === colorKey ? 'scale-110 ring-2 ring-offset-2 ring-slate-400 dark:ring-slate-600' : ''}`}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform ${accent === colorKey ? 'scale-110 ring-2 ring-offset-2 ring-slate-200 dark:ring-slate-600' : ''}`}
                     style={{ backgroundColor: ACCENT_COLORS[colorKey].primary }}
                   >
                       {accent === colorKey && <Icon name="check" size={16} className="text-white" />}

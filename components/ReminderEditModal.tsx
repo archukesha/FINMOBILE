@@ -21,27 +21,24 @@ const ReminderEditModal: React.FC<ReminderEditModalProps> = ({ isOpen, onClose, 
   const [weekDays, setWeekDays] = useState<number[]>([]);
   const [isActive, setIsActive] = useState(true);
 
-  // Update state whenever isOpen or initialData changes
   useEffect(() => {
     if (isOpen) {
       if (initialData) {
         setTitle(initialData.title);
         setMessage(initialData.message || '');
         const scheduled = new Date(initialData.scheduledAt);
-        // Correct date string for input type="date"
-        setDate(scheduled.toLocaleDateString('sv-SE')); // YYYY-MM-DD
+        setDate(scheduled.toISOString().split('T')[0]);
         setTime(scheduled.toTimeString().slice(0, 5));
         setRepeatType(initialData.repeat.type);
         setRepeatEvery(initialData.repeat.every || 1);
         setWeekDays(initialData.repeat.weekDays || []);
         setIsActive(initialData.isActive);
       } else {
-        // Reset for new reminder
         setTitle('');
         setMessage('');
         const now = new Date();
         now.setDate(now.getDate() + 1); 
-        setDate(now.toLocaleDateString('sv-SE')); // YYYY-MM-DD
+        setDate(now.toISOString().split('T')[0]);
         setTime(settings?.defaultTime || '09:00');
         setRepeatType('NONE');
         setRepeatEvery(1);
@@ -49,7 +46,7 @@ const ReminderEditModal: React.FC<ReminderEditModalProps> = ({ isOpen, onClose, 
         setIsActive(true);
       }
     }
-  }, [isOpen, initialData]); // Reduced dependencies to avoid stale closures or resets
+  }, [isOpen, initialData, settings]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

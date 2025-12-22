@@ -88,11 +88,10 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   }, [initialData]);
 
-  // Dynamically filter categories based on current type state
   const filteredCategories = localCategories.filter(c => {
     if (type === TransactionType.INCOME) return c.type === 'INCOME';
     if (type === TransactionType.EXPENSE) return c.type === 'EXPENSE';
-    return true; // For deposit/other
+    return true; 
   });
 
   // Safe Calculator Evaluation
@@ -131,53 +130,45 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         return;
     }
 
-    try {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'ru-RU';
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'ru-RU';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
 
-        setIsAiProcessing(true);
-        haptic.impact('light');
+    setIsAiProcessing(true);
+    haptic.impact('light');
 
-        recognition.start();
+    recognition.start();
 
-        recognition.onresult = async (event: any) => {
-            const text = event.results[0][0].transcript;
-            setNote(text); // Show raw text first
-            
-            try {
-                const parsed = await api.ai.parseVoiceCommand(text, categories);
-                if (parsed.amount) setAmountInput(parsed.amount.toString());
-                if (parsed.categoryId) setCategoryId(parsed.categoryId);
-                if (parsed.note) setNote(parsed.note);
-                haptic.notification('success');
-            } catch (e) {
-                console.error(e);
-            } finally {
-                setIsAiProcessing(false);
-            }
-        };
-
-        recognition.onerror = (e: any) => {
-            console.warn("Speech error", e);
+    recognition.onresult = async (event: any) => {
+        const text = event.results[0][0].transcript;
+        setNote(text); // Show raw text first
+        
+        try {
+            const parsed = await api.ai.parseVoiceCommand(text, categories);
+            if (parsed.amount) setAmountInput(parsed.amount.toString());
+            if (parsed.categoryId) setCategoryId(parsed.categoryId);
+            if (parsed.note) setNote(parsed.note);
+            haptic.notification('success');
+        } catch (e) {
+            console.error(e);
+        } finally {
             setIsAiProcessing(false);
-            alert("Ошибка распознавания речи. Проверьте разрешения.");
-        };
-        recognition.onend = () => {
-            if (isAiProcessing) setIsAiProcessing(false); 
-        };
-    } catch (e) {
-        alert("Не удалось запустить голосовой ввод.");
-        setIsAiProcessing(false);
-    }
+        }
+    };
+
+    recognition.onerror = () => setIsAiProcessing(false);
+    recognition.onend = () => {
+        if (isAiProcessing) setIsAiProcessing(false); 
+    };
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
 
+      // Basic image size validation (optional but recommended)
       if (file.size > 5 * 1024 * 1024) {
           alert("Файл слишком большой (макс 5МБ)");
           return;
@@ -219,7 +210,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     
     if (!finalVal || finalVal <= 0) return;
 
-    // Normalize to RUB for storage
+    // Convert to Base Currency (RUB) for storage if needed, or store original
+    // For this app, we will store normalized amount (RUB) and original amount
     const rate = CURRENCY_RATES[currency] || 1;
     const normalizedAmount = finalVal * rate;
 
@@ -259,7 +251,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             note: note ? `${note} (Предоплата)` : 'Предоплата по проекту'
         });
 
-        // Simplified Debt logic 
+        // Simplified Debt logic (assuming single currency for debts for now)
         const total = parseFloat(totalProjectAmount);
         const remaining = total - finalVal;
 
@@ -387,6 +379,12 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       }
   };
 
+  const addAmount = (add: number) => {
+      haptic.selection();
+      const current = parseFloat(amountInput) || 0;
+      setAmountInput((current + add).toString());
+  }
+
   const getGoalRemaining = (id: string) => {
       const goal = goals.find(g => g.id === id);
       if (!goal) return 0;
@@ -466,7 +464,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   }
 
   return (
-    <div className="p-4 bg-white dark:bg-slate-900 h-full flex flex-col pb-20 relative">
+    <div className="p-4 bg-white dark:bg-slate-900 min-h-full flex flex-col pb-20 relative">
       {/* AI Processing Overlay */}
       {isAiProcessing && (
           <div className="absolute inset-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm flex items-center justify-center flex-col animate-in fade-in">
@@ -477,7 +475,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           </div>
       )}
 
-      <div className="flex justify-between items-center mb-4 shrink-0">
+      <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-slate-800 dark:text-white">
           {isEditMode ? 'Редактировать' : 'Новая операция'}
         </h2>
@@ -502,7 +500,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                         onClick={() => fileInputRef.current?.click()}
                         className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center active:scale-95 transition-transform"
                     >
-                        <Icon name="camera" size={20} />
+                        <Icon name="scan" size={20} />
                     </button>
                 </div>
                 {isEditMode && (
@@ -519,10 +517,10 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       </div>
       
       {/* Type Switcher */}
-      <div className="grid grid-cols-3 gap-3 mb-6 mt-2 shrink-0">
+      <div className="grid grid-cols-3 gap-3 mb-6 mt-2">
         <button
           type="button"
-          onClick={() => { haptic.selection(); setType(TransactionType.EXPENSE); setIsPrepayment(false); setCategoryId(''); }}
+          onClick={() => { haptic.selection(); setType(TransactionType.EXPENSE); setIsPrepayment(false); }}
           className={`flex flex-col items-center justify-center py-3 rounded-2xl transition-all duration-200 border-2 active:scale-95 ${
             type === TransactionType.EXPENSE 
               ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-500 text-rose-600 dark:text-rose-400 shadow-md scale-105' 
@@ -537,7 +535,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
         <button
           type="button"
-          onClick={() => { haptic.selection(); setType(TransactionType.INCOME); setSplitSavings(false); setCategoryId(''); }}
+          onClick={() => { haptic.selection(); setType(TransactionType.INCOME); setSplitSavings(false); }}
           className={`flex flex-col items-center justify-center py-3 rounded-2xl transition-all duration-200 border-2 active:scale-95 ${
             type === TransactionType.INCOME
               ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500 text-emerald-600 dark:text-emerald-400 shadow-md scale-105' 
@@ -552,7 +550,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
         <button
           type="button"
-          onClick={() => { haptic.selection(); setType(TransactionType.SAVING_DEPOSIT); setIsPrepayment(false); setCategoryId('sav_transfer'); }}
+          onClick={() => { haptic.selection(); setType(TransactionType.SAVING_DEPOSIT); setIsPrepayment(false); }}
           className={`flex flex-col items-center justify-center py-3 rounded-2xl transition-all duration-200 border-2 active:scale-95 ${
             type === TransactionType.SAVING_DEPOSIT
               ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500 text-blue-600 dark:text-blue-400 shadow-md scale-105' 
@@ -582,7 +580,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 value={amountInput}
                 onChange={handleAmountChange}
                 onBlur={handleBlurAmount}
-                className="w-full text-center py-4 bg-slate-50 dark:bg-slate-800 border-b-4 border-indigo-500/20 focus:border-indigo-500 rounded-t-xl outline-none text-4xl font-black text-slate-900 dark:text-white placeholder-slate-300 dark:placeholder-slate-600 transition-colors"
+                className="w-full text-center py-2 bg-transparent border-b-2 border-slate-200 dark:border-slate-700 focus:border-primary focus:outline-none text-4xl font-bold text-slate-800 dark:text-white placeholder-slate-200 dark:placeholder-slate-700"
                 placeholder="0"
                 required
                 autoFocus={!isEditMode}
@@ -591,7 +589,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
              <select 
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value as Currency)}
-                className="bg-slate-100 dark:bg-slate-800 font-bold text-sm rounded-xl px-3 py-2 outline-none text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+                className="bg-slate-100 dark:bg-slate-800 font-bold text-sm rounded-lg px-2 py-1 outline-none text-slate-600 dark:text-slate-300"
              >
                  <option value="RUB">RUB</option>
                  <option value="USD">USD</option>
@@ -621,7 +619,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               onBlur={handleNoteBlur}
-              placeholder="Например: Такси"
+              placeholder="Такси, Обед..."
               className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-primary outline-none placeholder-slate-400"
             />
           </div>
@@ -635,14 +633,14 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                <button 
                 type="button" 
                 onClick={() => setIsReorderMode(!isReorderMode)}
-                className={`text-xs font-bold px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 ${isReorderMode ? 'text-primary' : 'text-slate-400'}`}
+                className={`text-xs font-bold ${isReorderMode ? 'text-primary' : 'text-slate-400'}`}
                >
                  {isReorderMode ? 'Готово' : 'Сортировка'}
                </button>
             </div>
             
             {/* Expanded height for grid, using flex-1 to take available space but allowing scroll */}
-            <div className="grid grid-cols-4 gap-3 overflow-y-auto no-scrollbar pb-2 content-start flex-1" style={{ minHeight: '120px' }}>
+            <div className="grid grid-cols-4 gap-3 overflow-y-auto no-scrollbar pb-2 content-start flex-1" style={{ minHeight: '150px' }}>
               {filteredCategories.map((cat, index) => (
                 <div
                     key={cat.id}
@@ -650,7 +648,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     onDragStart={(e) => handleDragStart(e, index)}
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDrop(e, index)}
-                    className={isReorderMode ? 'animate-pulse cursor-move' : ''}
+                    className={isReorderMode ? 'animate-pulse' : ''}
                 >
                     <button
                     type="button"
